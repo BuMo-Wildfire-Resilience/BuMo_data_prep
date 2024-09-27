@@ -1,10 +1,15 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.gitignore
+
 # History files
 .Rhistory
 .Rapp.history
 
 # Session Data files
 .RData
-.RDataTmp
 
 # User-specific files
 .Ruserdata
@@ -35,15 +40,34 @@ vignettes/*.pdf
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
+.Rproj.user
+out/
+internal.R
+*.DS_Store
 
 # R Environment Variables
 .Renviron
+.Rproj.user
 
-# pkgdown site
-docs/
+# Data files
+/data/
+*.tif
+*.jl
 
-# translation temp files
-po/*~
-
-# RStudio Connect folder
-rsconnect/
+#Figures
+/graphics/
+*.png
+*.html
+*.pdf
+*.xlsx
+.DS_Store
+#/out*/
+/tmp*/
+*qgs*
+*doc*
+/out/
+/Test*/
+*qgz*
+#Archive
+/archive/
+/OffLine/
