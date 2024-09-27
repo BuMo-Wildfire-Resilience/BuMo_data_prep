@@ -24,7 +24,8 @@ run_all.R	Sets local variables and directories used by scripts, presents script 
 header.R	loads R packages, sets global directories, and attributes.
 
 #Load Scripts:	
-01_load.R	load script sourcing all the various pre-processed layers required - typically only required for first run.  
+01_AOI.R loads boundary layers and generates project AOI
+01_load.R	sources the various layers required - typically only required for first run.  
 
 #Clean Scripts:   
 02_clean.R
