@@ -13,15 +13,6 @@
 options(timeout=180)
 source("header.R")
 
-#Base load
-spatialOutDir <- file.path('out','spatial')
-spatialInDir <- file.path(spatialOutDir)
-dataOutDir <- file.path(OutDir,'data')
-dir.create(file.path(dataOutDir), showWarnings = FALSE)
-dir.create(file.path(spatialOutDir), showWarnings = FALSE)
-tempAOIDir<-paste0("tmp/")
-dir.create(tempAOIDir, showWarnings = FALSE)
-
 #Build AOI
 source('01_AOI.R')
 #Data load
