@@ -141,28 +141,49 @@ if (!file.exists(BEC_file)) {
  }
 
 #Additional Fire related files
-burn_file <- file.path(FireData,"BurnSeverityP.gpkg")
+burn_file <- file.path(spatialOutDir,"BurnSeverity.gpkg")
 if (!file.exists(burn_file)) {
   BurnSeverityP<-get_data_fn('WHSE_FOREST_VEGETATION.VEG_BURN_SEVERITY_SAME_YR_SP','BurnSeverityP')
+    BurnSeverity<-   BurnSeverityP %>% st_intersection(AOI)
+     write_sf(BurnSeverity, file.path(spatialOutDir,"BurnSeverity.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
   BurnSeverityHP<-get_data_fn('WHSE_FOREST_VEGETATION.VEG_BURN_SEVERITY_SP','BurnSeverityHP')
+    BurnSeverityH<-   BurnSeverityHP %>% st_intersection(AOI)
+     write_sf(BurnSeverityH, file.path(spatialOutDir,"BurnSeverityH.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
   LightningFireDensityP<-get_data_fn('WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_LTG_FIRE_ST_DNSTY_SP','LightningFireDensityP')
+    LightningFireDensity<-   LightningFireDensityP %>% st_intersection(AOI)
+     write_sf(LightningFireDensity, file.path(spatialOutDir,"LightningFireDensity.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
   HumanFireDensityP<-get_data_fn('WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_HMN_FIRE_ST_DNSTY_SP','HumanFireDensityP')
+     HumanFireDensity<-   HumanFireDensityP %>% st_intersection(AOI)
+     write_sf(HumanFireDensity, file.path(spatialOutDir,"HumanFireDensity.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
   FireHeadDensityP<-get_data_fn('WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_HEAD_FIRE_INTNSTY_SP','FireHeadDensityP')
+     FireHeadDensity<-   FireHeadDensityP %>% st_intersection(AOI)
+     write_sf(FireHeadDensity, file.path(spatialOutDir,"FireHeadDensity.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
   FireDensityP<-get_data_fn('WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_FIRE_STRT_DENSITY_SP','FireDensityP')
+     FireDensity<-   FireDensityP %>% st_intersection(AOI)
+     write_sf(FireDensity, file.path(spatialOutDir,"FireDensity.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
   FireSpottingP<-get_data_fn('WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_SPOTTING_IMPACT_SP','FireSpottingP')
-} else {
-  BurnSeverity<-st_read(file.path(FireData,'BurnSeverityP.gpkg'))
-  BurnSeverityH<-st_read(file.path(spatialOutDir,'BurnSeverityHP.gpkg'))
-  LightningFireDensity<-st_read(file.path(FireData,'LightningFireDensityP.gpkg'))
-  HumanFireDensity<-st_read(file.path(FireData,'HumanFireDensityP.gpkg'))
-  FireDensity<-st_read(file.path(FireData,'FireDensityP.gpkg'))
-  FireHeadDensity<-st_read(file.path(FireData,'FireHeadDensityP.gpkg'))
-  FireSpotting<-st_read(file.path(FireData,'FireSpottingP.gpkg'))
- }
+     FireSpotting<-   FireSpottingP %>% st_intersection(AOI)
+     write_sf(FireSpotting, file.path(spatialOutDir,"FireSpotting.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
+  PestInfectionHistoricP<-get_data_fn('WHSE_FOREST_VEGETATION.PEST_INFEST_HISTORIC_POLY','FireSpottingP')
+     PestInfectionHistoric<-   PestInfectionHistoricP %>% st_intersection(AOI)
+     write_sf(PestInfectionHistoric, file.path(spatialOutDir,"PestInfectionHistoric.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
+  PestInfectionCurrentP<-get_data_fn('WHSE_FOREST_VEGETATION.PEST_INFEST_CURRENT_POLY','FireSpottingP')
+     PestInfectionCurrent<-   PestInfectionCurrentP %>% st_intersection(AOI)
+     write_sf(PestInfectionCurrent, file.path(spatialOutDir,"PestInfectionCurrent.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
+  } else {
+  BurnSeverity<-st_read(file.path(spatialOutDir,'BurnSeverity.gpkg'))
+  BurnSeverityH<-st_read(file.path(spatialOutDir,'BurnSeverityH.gpkg'))
+  LightningFireDensity<-st_read(file.path(spatialOutDir,'LightningFireDensity.gpkg'))
+  HumanFireDensity<-st_read(file.path(spatialOutDir,'HumanFireDensity.gpkg'))
+  FireHeadDensity<-st_read(file.path(spatialOutDir,'FireHeadDensity.gpkg'))
+  FireDensity<-st_read(file.path(spatialOutDir,'FireDensity.gpkg'))
+  FireSpotting<-st_read(file.path(spatialOutDir,'FireSpotting.gpkg'))
+  PestInfectionHistoric<-st_read(file.path(spatialOutDir,'PestInfectionHistoric.gpkg'))
+  PestInfectionCurrent<-st_read(file.path(spatialOutDir,'PestInfectionCurrent.gpkg'))
+}
 
-#MPB
-#WHSE_FOREST_VEGETATION.PEST_INFEST_HISTORIC_POLY
-#WHSE_FOREST_VEGETATION.PEST_INFEST_CURRENT_POLY
+
+"../../../Bulkley Morice Wildfire Resilience Pilot/Technical/Data/Spatial"
 
 #WHSE_LEGAL_ADMIN_BOUNDARIES.DRP_MOF_FIRE_ZONES_SP
 #WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_HMN_FIRE_ST_DNSTY_SP
