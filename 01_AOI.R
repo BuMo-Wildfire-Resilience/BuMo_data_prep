@@ -10,6 +10,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and limitations under the License.
 
+
+#AOI is a combination of:
+# TSA
+# First Nation Statement of Intent areas
+# Major watersheds - some of which are used as a surrogate for Gixsan watershed groups - Kitsequecla, Suskwa, Babine
+# These areas are surrounded by a 100km boundary to compensate for edge effects
+# Finally those areas of the Skeena Watershed that are outside the boundary are added in
+# to accommodate full watershed assessment
+AOI_file<-file.path(spatialOutDir,"AOI.gpkg")
+if (!file.exists(AOI_file)) {
 #Load boundary files for making AOI
 #Major Watersheds
 Mjr_Wshd<-bcdc_get_data("WHSE_BASEMAPPING.BC_MAJOR_WATERSHEDS") %>%
@@ -24,19 +34,17 @@ write_sf(FN_statement_of_intent, file.path(spatialOutDir,"FN_statement_of_intent
 bc_tsa<-bcdc_get_data("WHSE_ADMIN_BOUNDARIES.FADM_TSA")
 st_crs(bc_tsa)<-3005
 write_sf(bc_tsa, file.path(spatialOutDir,"bc_tsa.gpkg"))
-
-#AOI is a combination of:
-# TSA
-# First Nation Statement of Intent areas
-# Major watersheds - some of which are used as a surrogate for Gixsan watershed groups
-# These areas are surrounded by a 100km boundary to compensate for edge effects
-# Finally those areas of the Skeena Watershed that are outside the boundary are added in
-# to accommodate full watershed assessment
-AOI_file<-file.path(spatialOutDir,"AOI.gpkg")
-if (!file.exists(AOI_file)) {
 AOI.TSA<-bc_tsa %>%
   dplyr::filter(TSA_NUMBER_DESCRIPTION %in% c('Bulkley TSA','Morice TSA','Lakes TSA'))
 #Gitxsan watersheds that touch the TSAs
+Gitxsan_admin_watershed<-st_read(file.path(ProvData,'Boundaries/FirstNationsBoundaries/gitxsan_admin_watershed_v2.shp'))
+st_crs(Gitxsan_admin_watershed)<-3005
+write_sf(Gitxsan_admin_watershed,file.path(spatialOutDir,'Gitxsan_admin_watershed.gpkg'))
+Gitxsan_BuMo<-Gitxsan_admin_watershed %>%
+    dplyr::filter(ADM_NAME %in% c('Suskwa','Babine','Kitseguecla'))
+write_sf(Gitxsan_BuMo,file.path(spatialOutDir,'Gitxsan_BuMo.gpkg'))
+
+#Use Mjr_Wshd until permision to use Gitxsan admin watershed boundaries
 AOI.Gitxsan<-Mjr_Wshd %>%
   dplyr::filter(MAJOR_WATERSHED_SYSTEM %in% c('Bulkley River','Babine River','Kitseguecla River'))
 #Other First Nations
@@ -67,6 +75,9 @@ AOI<-AOI.1 %>%
 write_sf(AOI, file.path(spatialOutDir,"AOI.gpkg"))
 write_sf(AOI, file.path(spatialOutDir,"AOI.shp"))
 } else {
+  Mjr_Wshd<-st_read(file.path(spatialOutDir,"Mjr_Wshd.gpkg"))
+  FN_statement_of_intent<-st_read(file.path(spatialOutDir,"FN_statement_of_intent.gpkg"))
+  bc_tsa<-st_read(file.path(spatialOutDir,"bc_tsa.gpkg"))
   AOI<-st_read(file.path(spatialOutDir,"AOI.gpkg"))
 }
 
