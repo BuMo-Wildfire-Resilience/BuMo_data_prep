@@ -102,12 +102,10 @@ if (!file.exists(fuel_file)) {
   FireThreat<-FireThreat.1 %>%
     st_intersection(AOI)
   write_sf(FireThreat,file.path(spatialOutDir,paste0('FireThreat.gpkg')),delete_layer=TRUE)
-
 } else {
   FuelType<-st_read(file.path(spatialOutDir,"FuelType.gpkg"))
   FireThreat<-st_read(file.path(spatialOutDir,"FireThreat.gpkg"))
 }
-
 
 DEM_file<-file.path(spatialOutDir,"DEMtp_BuMo.tif")
 if (!file.exists(DEM_file)) {
@@ -136,7 +134,6 @@ if (!file.exists(BEC_file)) {
  BEC_BuMo<-BECin %>%
    st_intersection(AOI) %>%
    st_collection_extract("POLYGON")
- 
  write_sf(BEC_BuMo, file.path(spatialOutDir,"BEC_BuMo.gpkg"),layer_options = "OVERWRITE=true", 
           append=FALSE,delete_dsn=TRUE)
 } else {
@@ -155,9 +152,9 @@ if (!file.exists(burn_file)) {
   FireSpottingP<-get_data_fn('WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_SPOTTING_IMPACT_SP','FireSpottingP')
 } else {
   BurnSeverity<-st_read(file.path(FireData,'BurnSeverityP.gpkg'))
-  BurnSeverityH<-st_read(file.path(FireData,'BurnSeverityHP.gpkg'))
+  BurnSeverityH<-st_read(file.path(spatialOutDir,'BurnSeverityHP.gpkg'))
   LightningFireDensity<-st_read(file.path(FireData,'LightningFireDensityP.gpkg'))
-  HumanFireDensity<-st_read(file.path(FireData,'HumanFireDensityP'))
+  HumanFireDensity<-st_read(file.path(FireData,'HumanFireDensityP.gpkg'))
   FireDensity<-st_read(file.path(FireData,'FireDensityP.gpkg'))
   FireHeadDensity<-st_read(file.path(FireData,'FireHeadDensityP.gpkg'))
   FireSpotting<-st_read(file.path(FireData,'FireSpottingP.gpkg'))

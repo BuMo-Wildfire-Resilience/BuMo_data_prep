@@ -35,6 +35,7 @@ library(datawizard)
 options(scipen=999)
 options(warn = 1)
 options(timeout=10000)
+control.compute=list(save.memory=TRUE)
 
 #Install climr - climate BC R package
 #install.packages("remotes") # to install climr
@@ -42,30 +43,23 @@ options(timeout=10000)
 #remotes::install_github("bcgov/climr", force=TRUE)
 #library(climr)
 
-DataDir <- 'data'
+#DataDir <- '../../../Bulkley Morice Wildfire Resilience Pilot/Analysis/Data/BuMo_data_prep/data'
+DataDir<-'data'
 dir.create(DataDir, showWarnings = FALSE)
 spatialDir <- file.path(DataDir,'spatial')
 dir.create(spatialDir, showWarnings = FALSE)
-OutDir <- 'out'
+
+#OutDir <- '../../../Bulkley Morice Wildfire Resilience Pilot/Analysis/Data/BuMo_data_prep/out'
+OutDir<-'out'
 dir.create(file.path(OutDir), showWarnings = FALSE)
 dataOutDir <- file.path(OutDir,'data')
 dir.create(file.path(dataOutDir), showWarnings = FALSE)
-spatialOutDir <- file.path(DataDir,'spatial')
+spatialOutDir <- file.path(OutDir,'spatial')
 dir.create(file.path(spatialOutDir), showWarnings = FALSE)
 dir.create("tmp", showWarnings = FALSE)
+
 ProvData<- file.path('../../PROVData')
 FireData<-file.path(ProvData,'BC_Fire')
-
-#FieldData<-file.path(DataDir,'2023FieldData')
-#OutDirWESP <-'../WESP_data_prep/out'
-#dataOutDirWESP <- file.path(OutDirWESP,'data')
-#spatialOutDirPWESP <- file.path(OutDirWESP,'spatial')
-#DataDirWESP <- '../WESP_Sample_Design/data'
-#GISLibrary<- file.path('/Users/darkbabine/ProjectLibrary/Library/GISFiles/BC')
-#WESPDir <- file.path('../WESP_Sample_Design/data')
-#BioDDir <- file.path('../../Biodiversity/data')
-#DrawDir <- file.path('../WESP_Sample_Draw/data')
-#WESPdata<-file.path('../../WESPdata')
 
 
 
