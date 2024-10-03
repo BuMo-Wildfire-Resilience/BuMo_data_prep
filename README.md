@@ -23,8 +23,8 @@ Analysis scripts.
 run_all.R	Sets local variables and directories used by scripts, presents script order.  
 header.R	loads R packages, sets global directories, and attributes.
 
-#Load Scripts:	
-01_AOI.R loads boundary layers and generates project AOI  
+#Load Scripts:   
+01_AOI.R loads boundary layers and generates project AOI   
 01_load.R	sources the various layers required - typically only required for first run.  
 
 #Clean Scripts:   
