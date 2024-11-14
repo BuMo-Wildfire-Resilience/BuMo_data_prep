@@ -18,7 +18,7 @@
 # These areas are surrounded by a 100km boundary to compensate for edge effects
 # Finally those areas of the Skeena Watershed that are outside the boundary are added in
 # to accommodate full watershed assessment
-AOI_file<-file.path(spatialOutDir,"AOI.gpkg")
+AOI_file<-file.path(spatialOutDir,"AOI_Admin.gpkg")
 if (!file.exists(AOI_file)) {
 #Load boundary files for making AOI
 #Major Watersheds
@@ -35,23 +35,25 @@ bc_tsa<-bcdc_get_data("WHSE_ADMIN_BOUNDARIES.FADM_TSA")
 st_crs(bc_tsa)<-3005
 write_sf(bc_tsa, file.path(spatialOutDir,"bc_tsa.gpkg"))
 AOI.TSA<-bc_tsa %>%
-  dplyr::filter(TSA_NUMBER_DESCRIPTION %in% c('Bulkley TSA','Morice TSA','Lakes TSA'))
+  #dplyr::filter(TSA_NUMBER_DESCRIPTION %in% c('Bulkley TSA','Morice TSA','Lakes TSA'))
+  dplyr::filter(TSA_NUMBER_DESCRIPTION %in% c('Bulkley TSA','Morice TSA'))
+write_sf(AOI.TSA,file.path(spatialOutDir,'AOI.TSA.gpkg'))
 #Gitxsan watersheds that touch the TSAs
 Gitxsan_admin_watershed<-st_read(file.path(ProvData,'Boundaries/FirstNationsBoundaries/gitxsan_admin_watershed_v2.shp'))
 st_crs(Gitxsan_admin_watershed)<-3005
 write_sf(Gitxsan_admin_watershed,file.path(spatialOutDir,'Gitxsan_admin_watershed.gpkg'))
-Gitxsan_BuMo<-Gitxsan_admin_watershed %>%
+AOI.Gitxsan<-Gitxsan_admin_watershed %>%
     dplyr::filter(ADM_NAME %in% c('Suskwa','Babine','Kitseguecla'))
-write_sf(Gitxsan_BuMo,file.path(spatialOutDir,'Gitxsan_BuMo.gpkg'))
+write_sf(AOI.Gitxsan,file.path(spatialOutDir,'AOI.Gitxsan.gpkg'))
 
 #Use Mjr_Wshd until permision to use Gitxsan admin watershed boundaries
-AOI.Gitxsan<-Mjr_Wshd %>%
-  dplyr::filter(MAJOR_WATERSHED_SYSTEM %in% c('Bulkley River','Babine River','Kitseguecla River'))
+#AOI.Gitxsan<-Mjr_Wshd %>%
+#  dplyr::filter(MAJOR_WATERSHED_SYSTEM %in% c('Bulkley River','Babine River','Kitseguecla River'))
 #Other First Nations
 AOI.Nations<-FN_statement_of_intent %>%
   dplyr::filter(NAME %in% c('Cheslatta Carrier Nation','Lake Babine Nation',"Wet'suwet'en Nation")) %>% #'Carrier Sekani Tribal Council','Nazko First Nation' - doesnt touch TSAs
   st_union(AOI.Gitxsan)
-write_sf(AOI.Nations,,file.path(spatialOutDir,'AOI.Nations.gpkg'))
+st_write(AOI.Nations,file.path(spatialOutDir,'AOI.Nations.gpkg'))
 AOI.Skeena<-Mjr_Wshd %>%
   dplyr::filter(MAJOR_WATERSHED_SYSTEM %in% c('Skeena River'))
 
@@ -61,24 +63,35 @@ AOI.buffer<-AOI.TSA %>%
   mutate(AOI=1) %>%
   group_by(AOI) %>%
   dplyr::summarize() %>%
-  st_buffer(dist=100000) %>%
+  #st_buffer(dist=100000) %>%
   dplyr::select(AOI)
 #Add in Skeena for final AOI
-AOI<-AOI.buffer %>%
-  st_union(AOI.Skeena)
+AOI_Admin<-AOI.buffer #%>%
+  #st_union(AOI.Skeena)
+
+p <- jagged_polygons$geometry[5]
+area_thresh <- units::set_units(1000, km^2)
+AOI_Admin <- fill_holes(AOI.buffer, threshold = area_thresh)
 
 #mapview results
- mapview(AOI.buffer,col.regions='yellow')+
+ mapview(AOI_Admin,col.regions='yellow')+
   mapview(AOI.Skeena,col.regions='red')+ 
   mapview(AOI.Nations,col.regions='green')+
   mapview(AOI.TSA,col.regions= 'purple')
  
-write_sf(AOI, file.path(spatialOutDir,"AOI.gpkg"))
-write_sf(AOI, file.path(spatialOutDir,"AOI.shp"))
+write_sf(AOI_Admin, file.path(spatialOutDir,"AOI_Admin.gpkg"))
+write_sf(AOI_Admin, file.path(spatialOutDir,"AOI_Admin.shp"))
+write_sf(AOI.TSA, file.path(spatialOutDir,"AOI.TSA.gpkg"))
+write_sf(AOI.Nations, file.path(spatialOutDir,"AOI.Nations.gpkg"))
 } else {
   Mjr_Wshd<-st_read(file.path(spatialOutDir,"Mjr_Wshd.gpkg"))
   FN_statement_of_intent<-st_read(file.path(spatialOutDir,"FN_statement_of_intent.gpkg"))
   bc_tsa<-st_read(file.path(spatialOutDir,"bc_tsa.gpkg"))
   AOI<-st_read(file.path(spatialOutDir,"AOI.gpkg"))
+  AOI.Gitxsan<-(file.path(spatialOutDir,'AOI.Gitxsan.gpkg'))
 }
+
+#Make a project map for Marion
+
+
 

@@ -10,6 +10,7 @@ library(mapview)
 library(WriteXLS)
 library(foreign)
 library(ggplot2)
+library(ggspatial)
 library(ggnewscale)
 library(viridis)
 library(stars)
@@ -58,7 +59,7 @@ spatialOutDir <- file.path(OutDir,'spatial')
 dir.create(file.path(spatialOutDir), showWarnings = FALSE)
 dir.create("tmp", showWarnings = FALSE)
 
-ProvData<- file.path('../../PROVData')
+ProvData<- file.path('../../../_dev/PROVData')
 FireData<-file.path(ProvData,'BC_Fire')
 
 

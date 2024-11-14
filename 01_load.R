@@ -170,6 +170,9 @@ if (!file.exists(burn_file)) {
   PestInfectionCurrentP<-get_data_fn('WHSE_FOREST_VEGETATION.PEST_INFEST_CURRENT_POLY','FireSpottingP')
      PestInfectionCurrent<-   PestInfectionCurrentP %>% st_intersection(AOI)
      write_sf(PestInfectionCurrent, file.path(spatialOutDir,"PestInfectionCurrent.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
+ HistoricFireP<-get_data_fn('WHSE_LAND_AND_NATURAL_RESOURCE.PROT_HISTORICAL_FIRE_POLYS_SP','HistoricFireP')
+     HistoricFire<-   HistoricFireP %>% st_intersection(AOI)
+     write_sf(HistoricFire, file.path(spatialOutDir,"HistoricFire.gpkg"),layer_options = "OVERWRITE=true", append=FALSE,delete_dsn=TRUE)
   } else {
   BurnSeverity<-st_read(file.path(spatialOutDir,'BurnSeverity.gpkg'))
   BurnSeverityH<-st_read(file.path(spatialOutDir,'BurnSeverityH.gpkg'))
@@ -180,6 +183,7 @@ if (!file.exists(burn_file)) {
   FireSpotting<-st_read(file.path(spatialOutDir,'FireSpotting.gpkg'))
   PestInfectionHistoric<-st_read(file.path(spatialOutDir,'PestInfectionHistoric.gpkg'))
   PestInfectionCurrent<-st_read(file.path(spatialOutDir,'PestInfectionCurrent.gpkg'))
+  HistoricFire<-st_read(file.path(spatialOutDir,'HistoricFire.gpkg'))
 }
 
 
@@ -189,4 +193,35 @@ if (!file.exists(burn_file)) {
 #WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_HMN_FIRE_ST_DNSTY_SP
 
 #Additional loads - see Archive
+water_file <- file.path(spatialOutDir,"FWA_lakes.gpkg")
+if (!file.exists(water_file)) {
+FWA_lakes_raw<-bcdc_get_data("WHSE_BASEMAPPING.FWA_LAKES_POLY")
+#FWA_lakes_raw<-Lakes
+FWA_lakes<-FWA_lakes_raw %>%
+  st_intersection(AOI) %>%
+  mutate(water=1) %>%
+  mutate(WaterType='lake') %>%
+  mutate(area_Ha=as.numeric(st_area(.)*0.0001)) %>%
+  select(water,WaterType, area_Ha)
+write_sf(FWA_lakes, file.path(spatialOutDir,"FWA_lakes.gpkg"))
 
+#FWA_rivers
+FWA_rivers_raw<-bcdc_get_data("WHSE_BASEMAPPING.FWA_RIVERS_POLY")
+#FWA_rivers_raw<-Rivers
+FWA_rivers<-FWA_rivers_raw %>%
+  st_intersection(AOI) %>%
+  mutate(water=1) %>%
+  mutate(WaterType='river') %>%
+  mutate(area_Ha=as.numeric(st_area(.)*0.0001)) %>%
+  select(water,WaterType,area_Ha)
+write_sf(FWA_rivers, file.path(spatialOutDir,"FWA_rivers.gpkg"))
+
+FWA_wetlands_raw<-bcdc_get_data("WHSE_BASEMAPPING.FWA_WETLANDS_POLY")
+FWA_wetlands<-FWA_wetlands_raw %>%
+  st_intersection(AOI)
+write_sf(FWA_wetlands, file.path(spatialOutDir,"FWA_wetlands.gpkg"))
+} else {
+  FWA_lakes<-st_read(file.path(spatialOutDir,"FWA_lakes.gpkg"))
+  FWA_rivers<-st_read(file.path(spatialOutDir,"FWA_rivers.gpkg"))
+  FWA_wetlands<-st_read(file.path(spatialOutDir,"FWA_wetlands.gpkg"))
+}
