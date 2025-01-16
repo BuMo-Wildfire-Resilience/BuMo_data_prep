@@ -225,3 +225,30 @@ write_sf(FWA_wetlands, file.path(spatialOutDir,"FWA_wetlands.gpkg"))
   FWA_rivers<-st_read(file.path(spatialOutDir,"FWA_rivers.gpkg"))
   FWA_wetlands<-st_read(file.path(spatialOutDir,"FWA_wetlands.gpkg"))
 }
+
+
+
+# extract the National Burned Area Composite NBAC datasets 
+library(purrr)
+#NBAC
+
+nbacs <- list.files(fs::path(spatialDir, 'NBAC'), full.names = TRUE, recursive = TRUE, pattern = ".shp$")
+AOI<-st_read(file.path(spatialOutDir,"AOI.gpkg"))
+
+nbac_int <- map(nbacs, function(i){ 
+
+  nbac <- st_read(i) |> 
+    st_transform(3005) |> 
+    st_intersection(AOI) 
+  
+}) |> bind_rows()
+
+
+st_write(nbac_int, fs::path(spatialOutDir, 'NBAC_20102023.gpkg'), delete_layer = TRUE)
+
+
+
+
+
+
+
