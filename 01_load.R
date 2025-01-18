@@ -229,6 +229,7 @@ write_sf(FWA_wetlands, file.path(spatialOutDir,"FWA_wetlands.gpkg"))
 
 
 # extract the National Burned Area Composite NBAC datasets 
+
 library(purrr)
 #NBAC
 
@@ -243,12 +244,29 @@ nbac_int <- map(nbacs, function(i){
   
 }) |> bind_rows()
 
-
 st_write(nbac_int, fs::path(spatialOutDir, 'NBAC_20102023.gpkg'), delete_layer = TRUE)
 
 
 
 
+
+
+# extract points from Canadaian Fire Spread Dataset (note only goes up to 2021)
+#CFSD - https://osf.io/f48ry/?view_only=
+
+
+# testing with 2021 dataset 
+
+sd <- list.files(fs::path(spatialDir, 'CFSD'), full.names = TRUE, recursive = TRUE, pattern = ".csv$")[3]
+AOI <- st_read(file.path(spatialOutDir,"AOI.gpkg"))
+
+sdf <- read.csv(sd)
+sdf <- sdf |>  filter(year >2009)
+sdf <- st_as_sf(sdf, coords = c("lon", "lat"), crs = 4326) |> 
+  st_transform(3005) |> 
+  st_intersection(AOI)
+
+st_write(sdf, fs::path(spatialOutDir, 'CFSD_2021.gpkg'), delete_layer = TRUE)
 
 
 
