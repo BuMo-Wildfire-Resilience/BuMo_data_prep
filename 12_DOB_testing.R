@@ -1,6 +1,6 @@
 
 ## Edited by G.Perkins
-## recieved copy from S. Parks Jan 16th 2025
+## received copy from S. Parks Jan 16th 2025
 
 # PLEASE DO NOT REDISTRIBUTE !!!
 # PLEASE GAIN ACCESS TO LATEST CODE DIRECTLY FROM AUTHOR (IN CASE ANY MODIFICATIONS WERE MADE)
