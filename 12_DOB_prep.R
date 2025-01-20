@@ -61,9 +61,6 @@ fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20102023bece.gpkg")
    filter(central_aoi == TRUE)
 fire.perims <- st_transform(fire.perims, 4326)
 
-# Year of fires. You will need to modify this file if you have several years to process
-year <- 2018
-
 # Set the output pixel size here. Canadian folk might want to consider 100 or 200 m.
 
 pixel.size = 100
@@ -71,8 +68,6 @@ pixel.size = 100
 # set projection; this is the standard projection used by many national (USA) programs
 
 the.prj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs"
-
-
 
 
 #####################################################################################################################################################
@@ -134,15 +129,11 @@ if (file.exists(fs::path("data", "spatial", "Hotspots", "hotspots_all.gpkg"))) {
 
 
 
-
-
-###################################
-# Read in hotspots
-
-
 # lets review an example 
-year = 2018
-"R21721"
+#year = 2018
+#"R21721"
+
+# create an output folder 
 
 if(!dir.exists(fs::path(spatialOutDir, "DOB"))) {
   dir.create(fs::path(spatialOutDir, "DOB"))
@@ -150,11 +141,14 @@ if(!dir.exists(fs::path(spatialOutDir, "DOB"))) {
 
 dob_dir <- fs::path(spatialOutDir, "DOB")
 
-fire.list <- unique(subset(fire.perims, FIRE_YEAR == year)$FIRE_NUMBER)
 
-#for (xx in 1:length(fire.list)) {
+# read in fire perimeters and extract the hotspots per fire. 
+
+fire.list <- unique(fire.perims$FIRE_NUMBER)
+
+for (xx in 1:length(fire.list)) {
   
-  xx <- 15
+  #xx <- 1
   fire <- fire.list[[xx]]
   
   fire.shp <- subset(fire.perims, FIRE_NUMBER == fire)
@@ -162,6 +156,7 @@ fire.list <- unique(subset(fire.perims, FIRE_YEAR == year)$FIRE_NUMBER)
   fire.shp.buffer.prj <- st_buffer(fire.shp.prj, dist=750)
   fire.shp.buffer.dd <- st_transform(fire.shp.buffer.prj, crs(fire.shp))
   
+  fire_year_perim = unique(fire.shp$FIRE_YEAR)
   # If there are clearly times when a fire should not be burning, those boundaries can be set here. Sometimes the fire detection
   # data picks up on industrial activities or slash pile burning or ???. The numbers correspond to Julian day.
   
@@ -179,9 +174,7 @@ fire.list <- unique(subset(fire.perims, FIRE_YEAR == year)$FIRE_NUMBER)
   
   fire.hotspots <- hotspots[fire.shp.buffer.dd,]
   
-  fire.hotspots <- fire.hotspots[fire.hotspots$fire_year == year,]
-  
-  
+  fire.hotspots <- fire.hotspots[fire.hotspots$fire_year == fire_year_perim,]
   
   
   if (nrow(fire.hotspots) > 0 ) {
@@ -233,9 +226,10 @@ fire.list <- unique(subset(fire.perims, FIRE_YEAR == year)$FIRE_NUMBER)
     
     fire.hotspots <- subset(fire.hotspots, select=c('ID', 'acq_date', 'acq_time', 'satellite', 'date', 'time', 'loc_JDT'))
     
-    
-    dir.create(paste0(fs::path(dob_dir, fire)))
-    
+    if(!dir.exists(fs::path(dob_dir, fire))) {
+      dir.create(fs::path(dob_dir, fire))
+      cli::cli_alert("creating new folder")
+      }
     #setwd(paste0('C:/temp/sample.dob.code/DOB/', fire))
     file.name <- paste(fire, '_hotspots.gpkg', sep='')
     st_write(fire.hotspots, fs::path(dob_dir, fire, file.name), delete_layer=TRUE)
@@ -263,11 +257,12 @@ fire.list <- unique(subset(fire.perims, FIRE_YEAR == year)$FIRE_NUMBER)
 
 for (xx in 1:length(fire.list)) {
   
-  
+  #xx <- 19
   # Get fire name and set WD
   
   fire <- as.character(fire.list[xx])
-  
+  print(fire)
+  print(xx)
   # Get fire perimeter shapefile
   
   fire.shp <- subset(fire.perims, FIRE_NUMBER == fire)
@@ -286,6 +281,10 @@ for (xx in 1:length(fire.list)) {
   
   # Make blank raster and a fire perimeter raster
   
+  if(nrow <1){
+    cli::cli_alert_info("no rows, fire too small so skipping")
+  } else {
+  
   blank.raster <- rast(nrows=nrow, ncols=ncol, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
   fire.perim.raster <- rasterize(fire.shp, blank.raster)
   
@@ -294,7 +293,7 @@ for (xx in 1:length(fire.list)) {
     
     # Get fire detetection points
     #setwd(paste0('C:/temp/sample.dob.code/DOB/', fire))
-    fire.hotspots <- st_read(fs::path(dob_dir, fire, paste0(fire, '_hotspots.gpkg')))
+    fire.hotspots <- st_read(fs::path(dob_dir, fire, paste0(fire, '_hotspots.gpkg')), quiet = TRUE)
     fire.hotspots <- st_transform(fire.hotspots, crs=the.prj)
     
     # I am under the impression that one should not interpolate DOB if there are not very many fire detections
@@ -416,6 +415,9 @@ for (xx in 1:length(fire.list)) {
            axes = FALSE)
       
     }
+  } else {
+    cli::cli_alert_info("no folder exist, skipping")
+  }
   }
 }
 
@@ -433,21 +435,23 @@ for (xx in 1:length(fire.list)) {
 ###################################################################################################################
 
 
-dob_dir_final <- fs::path(dob_dir, "DOB")
+#dob_dir_final <- fs::path(dob_dir, "DOB")
 
 for (xx in 1:length(fire.list)) {
   
+# xx <- 1
   fire <- fire.list[xx]
+  print(xx)
   
   ## This is a check because stage 1 and 2 does not produce files if there are not enough fire detections
-  if (file.exists(fs::path(dob_dir_final, fire, 'dob.tmp.tif')) & dir.exists(fs::path(dob_dir_final,fire) == T)) {
+  if (file.exists(fs::path(dob_dir, fire, 'dob.tmp.tif')) & dir.exists(fs::path(dob_dir, fire)) == T) {
     
     #setwd(paste0('C:/temp/sample.dob.code/DOB/', fire))
-    in_dir <- fs::path(dob_dir_final, fire)
+    in_dir <- fs::path(dob_dir, fire)
     
     # Load up the modeled DOB
     
-    modeled.dob.raster <- rast( fs::path(in_dir, 'dob.tmp.tif'))
+    modeled.dob.raster <- rast(fs::path(in_dir, 'dob.tmp.tif'))
     
     
     # Basically, these next steps create 'regions' for all continuous DOB estimates that are less than 25 ha
@@ -499,6 +503,10 @@ for (xx in 1:length(fire.list)) {
     nibble.df <- nibble.df[,-c(3,4)]
     dob.df <- subset(xy, patches != 99)
     
+    if(nrow(dob.df) == 0){
+      cli::cli_alert_info("no regions < 25 ha, skipping")
+    } else {
+    
     dob.df$ID <- seq(1, nrow(dob.df))
     dob.df.tmp <- dob.df[,-c(1,2,3)]
     dob.df.tmp$id.tmp <- dob.df.tmp$ID
@@ -520,7 +528,8 @@ for (xx in 1:length(fire.list)) {
          main = paste0(fire, '\nday of burning interpolation\nsmall regions <25ha removed'),
          axes = FALSE)
     #		file.remove('dob.tmp.tif'); file.remove('dob.tmp.tfw')
-  }
+    }
+  } else { cli::cli_alert_info("fires files not present, skippping") }
 }
 
 
