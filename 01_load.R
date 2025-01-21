@@ -257,7 +257,7 @@ st_write(nbac_int, fs::path(spatialOutDir, 'NBAC_20102023.gpkg'), delete_layer =
 
 # testing with 2021 dataset 
 
-sd <- list.files(fs::path(spatialDir, 'CFSD'), full.names = TRUE, recursive = TRUE, pattern = ".csv$")[3]
+sd <- list.files(fs::path(spatialDir, 'CFSD'), full.names = TRUE, recursive = TRUE, pattern = "Firegrowth_pts_v1_01_2018.csv$")#[3]
 AOI <- st_read(file.path(spatialOutDir,"AOI.gpkg"))
 
 sdf <- read.csv(sd)
@@ -270,3 +270,21 @@ st_write(sdf, fs::path(spatialOutDir, 'CFSD_2021.gpkg'), delete_layer = TRUE)
 
 
 
+# crop terra raster to make a template 
+AOI <- st_read(file.path(spatialOutDir,"AOI.gpkg"))
+bcrast <- rast(file.path(spatialOutDir,'BCr.tif'))
+bcrast <- crop(bcrast, AOI)
+
+writeRaster(bcrast, fs::path(spatialOutDir, "template_BuMo.tif"), overwrite = TRUE)
+
+
+
+# read in DEM and convert to slope 
+
+DEM <- rast(file.path(spatialOutDir,'DEM_BuMo.tif'))
+# reproject to template raster
+
+DEM <- project(DEM, bcrast)
+# convert to slope 
+slope <- terra::terrain(DEM, v = "slope", neighbors=8, unit="degrees")
+writeRaster(slope, fs::path(spatialOutDir, "slope_BuMo.tif"), overwrite = TRUE)
