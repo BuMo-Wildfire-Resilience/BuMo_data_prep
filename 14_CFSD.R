@@ -1,3 +1,20 @@
+#############################################################################
+# CFSDB - Estimate day of burning and extract covariates
+# Quinn Barber, October 2023
+##############################################################################
+
+# This code interpolates fire detection hotspots for a single fire and extracts
+# environmental covariates based on the interpolated day of burn. The full Canadian
+# Fire Spread Database (CFSDB) requires running this code over all NBAC fires over
+# 1,000 ha in final size
+
+# Required inputs: final fire perimeter (can be a convex/concave hull around hotspots),
+# hotspots cropped to fire period, environmental covariates of interest, and a base
+# raster. 
+
+# For comprehensive code using the National Burned Area Composite, contact Quinn Barber
+# quinn.barber@nrcan-rncan.gc.ca
+
 ## test another method ffor fire detections from single fire event
 library(terra)
 library(dplyr)
@@ -45,7 +62,7 @@ fire <- fire.perims |>
   filter(FIRE_NUMBER == "R21721")
 
 perimeter <- fire
-
+perimeter <- st_transform(perimeter, crs(bcrast))
 # read in hotspots 
 
 hotspots <- st_read(fs::path(spatialOutDir, "DOB", "R21721","R21721_hotspots.gpkg")) 
@@ -61,6 +78,7 @@ hotspots  <- terra::crop(hotspots, perimeter_buf)
 # 2.0 Interpolation --------------------------------------------
 # Here we use the subset hotspots and pre-defined perimeter to interpolate fire arrival time using kriging
 grid.fire <- terra::crop(bcrast, perimeter)
+
 grid.fire <- terra::rasterize(perimeter, grid.fire, fun="max", field=0)
 
 grid.pt <- stars::st_as_stars(grid.fire)

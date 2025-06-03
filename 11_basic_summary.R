@@ -26,7 +26,10 @@ library(ggplot2)
 
 # based on historic fires from 2010 onwards - up to 2023 yr
 hist <- st_read(fs::path(spatialOutDir,'HistoricFire.gpkg')) |> 
-  dplyr::filter(FIRE_YEAR >2009)
+  dplyr::filter(FIRE_YEAR >2002)
+
+# NEED TO ADD 2024 fires 
+
 
 
 # how many fires are within the admin boundary? This is those which are within or touching the AOI boundary
@@ -37,24 +40,25 @@ fires_aoi <- hist |> st_intersection(aoi_internal)
 fires <- hist %>% 
   mutate(central_aoi = ifelse(FIRE_NUMBER %in% fires_aoi$FIRE_NUMBER, TRUE, FALSE)) |> 
   #filter(FIRE_NUMBER %in% fires_aoi$FIRE_NUMBER)|> 
-  st_write(fs::path(spatialOutDir,'fires_perims_20102023.gpkg'),overwrite = TRUE)
+  st_write(fs::path(spatialOutDir,'fires_perims_20022023.gpkg'),overwrite = TRUE)
 
 
 
 # fires within the BEC zones 
 
 bec <- st_read(fs::path(spatialOutDir,'BEC_BuMo.gpkg')) |> 
-  dplyr::select(ZONE, geom) %>% 
-  filter(ZONE %in% c("ESSF", "SBS"))
+  dplyr::select(c(ZONE, geom, MAP_LABEL))  |> 
+ dplyr::filter(ZONE %in% c("ESSF", "SBS"))
 
-
-fires_bec <- fires |> st_intersection(bec)
+fires_bec <- fires |> 
+  filter(central_aoi == TRUE) |>  
+  st_intersection(bec)
 
 
 fires <- fires %>% 
   mutate(bec_zones = ifelse(FIRE_NUMBER %in% fires_bec$FIRE_NUMBER, TRUE, FALSE)) |> 
   #filter(FIRE_NUMBER %in% fires_aoi$FIRE_NUMBER)|> 
-  st_write(fs::path(spatialOutDir,'fires_perims_20102023.gpkg'), overwrite = TRUE)
+  st_write(fs::path(spatialOutDir,'fires_perims_20022023.gpkg'), overwrite = TRUE)
 
 
 # lets only keep fires that are overlapping the admin_aoi and BEC zones
@@ -94,18 +98,22 @@ fires_peryr <- sum |>
   dplyr::group_by(FIRE_YEAR, fire_size) |> 
   dplyr::summarise(n_fires = n()) |> 
   dplyr::arrange(desc(n_fires)) |> 
-  pivot_wider(names_from = fire_size, values_from = n_fires, id_cols = FIRE_YEAR) 
+  pivot_wider(names_from = fire_size, values_from = n_fires, id_cols = FIRE_YEAR)  |> 
+  arrange(FIRE_YEAR)|> 
+  select(FIRE_YEAR, small, medium, large, very_large)
 
 
-fires_tot <- fires_peryr <- sum |> 
+fires_tot <-  sum |> 
   dplyr::group_by(FIRE_YEAR, fire_size) |> 
   dplyr::summarise(total_area_ha = sum(area_ha)) |> 
   #dplyr::arrange(desc(n_fires)) |> 
-  pivot_wider(names_from = fire_size, values_from = total_area_ha, id_cols = FIRE_YEAR)
+  pivot_wider(names_from = fire_size, values_from = total_area_ha, id_cols = FIRE_YEAR) |> 
+  arrange(FIRE_YEAR) |> 
+  select(FIRE_YEAR, small, medium, large, very_large)
   
 
-write.csv(fires_peryr, fs::path(dataOutDir,'fires_count_yr_20202024.csv'), row.names = FALSE)
-write.csv(fires_tot, fs::path(dataOutDir,'fires_ha_yr_20202024.csv'), row.names = FALSE)
+write.csv(fires_peryr, fs::path(dataOutDir,'fires_count_yr_20022024.csv'), row.names = FALSE)
+write.csv(fires_tot, fs::path(dataOutDir,'fires_ha_yr_20022024.csv'), row.names = FALSE)
 
 
 ## Notes : 
@@ -129,8 +137,39 @@ ggplot(sum, aes(x = FIRE_YEAR)) +
   theme_minimal()
 
 
+
+# review of bec 
+
+bfires <- fires_bec  |>  
+  filter(central_aoi == TRUE) |>  
+  dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_CAUSE, ZONE)
+
+
+st_write(bfires, fs::path(spatialOutDir,'fires_bec_20022023.gpkg'), overwrite = TRUE)
+
+#|> 
+  dplyr::mutate(area = st_area(geom)) |> 
+  st_drop_geometry() 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ####
-# 2) fire perimeter data - NBAC 
+# 2) fire perimeter data - NBAC - not yet updated for the 2002-2009 fires 
 
 ## Bring in the NBAC data and check against BC data. 
 
