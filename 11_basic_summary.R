@@ -24,6 +24,46 @@ library(ggplot2)
 
 # 1) Bcdata catalogue 
 
+get_fires <- function(aoi, out_dir) { #  cli::cli_alert_info("Downloading recent fire disturbance (<20 years)")
+  
+  fire_records <- c(
+    "cdfc2d7b-c046-4bf0-90ac-4897232619e1",
+    "22c7cb44-1463-48f7-8e47-88857f207702"
+  )
+  
+  get_one_fire <- function(id) {
+    fires <- bcdata::bcdc_query_geodata(id) |>
+      bcdata::filter(bcdata::INTERSECTS(aoi)) |>
+      bcdata::collect()
+    if (nrow(fires) > 0) {
+      fires <- fires |>
+        dplyr::select(
+          "id", "FIRE_NUMBER", "VERSION_NUMBER", "FIRE_YEAR",
+          "FIRE_SIZE_HECTARES", "LOAD_DATE"
+        ) |>
+        sf::st_intersection(aoi) |>
+        # filter for recent fires
+        dplyr::filter(as.numeric(format(Sys.time(), "%Y")) - .data$FIRE_YEAR <= 20)
+    }
+    fires
+  }
+  
+  fires_all <- get_multi_datasets(fire_records, get_one_fire)
+  
+  if (all(is.na(fires_all)) || nrow(fires_all) == 0) {
+    cli::cli_alert_warning("No recent fire disturbance in area of interest")
+  } else {
+    sf::st_write(fires_all, fs::path(out_dir, "fire.gpkg"), append = FALSE)
+    cli::cat_line()
+    cli::cli_alert_success("fire layers downloaded and to written to {.path {out_dir}}")
+  }
+}
+
+
+
+
+
+
 # based on historic fires from 2010 onwards - up to 2023 yr
 hist <- st_read(fs::path(spatialOutDir,'HistoricFire.gpkg')) |> 
   dplyr::filter(FIRE_YEAR >2002)
