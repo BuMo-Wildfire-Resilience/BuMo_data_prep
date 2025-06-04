@@ -302,27 +302,7 @@ st_write(nbac_int, fs::path(spatialOutDir, "NBAC_20022024.gpkg"), delete_layer =
 
 
 
-
-
-# extract points from Canadaian Fire Spread Dataset (note only goes up to 2021)
-# CFSD - https://osf.io/f48ry/?view_only=
-
-
-# testing with 2021 dataset
-
-sd <- list.files(fs::path(spatialDir, "CFSD"), full.names = TRUE, recursive = TRUE, pattern = "Firegrowth_pts_v1_01_2018.csv$") # [3]
-AOI <- st_read(file.path(spatialOutDir, "AOI.gpkg"))
-
-sdf <- read.csv(sd)
-sdf <- sdf |> filter(year > 2009)
-sdf <- st_as_sf(sdf, coords = c("lon", "lat"), crs = 4326) |>
-  st_transform(3005) |>
-  st_intersection(AOI)
-
-st_write(sdf, fs::path(spatialOutDir, "CFSD_2021.gpkg"), delete_layer = TRUE)
-
-
-
+##  generate some basic raster layers
 # crop terra raster to make a template
 AOI <- st_read(file.path(spatialOutDir, "AOI.gpkg"))
 bcrast <- rast(file.path(spatialOutDir, "BCr.tif"))
@@ -330,9 +310,7 @@ bcrast <- crop(bcrast, AOI)
 writeRaster(bcrast, fs::path(spatialOutDir, "template_BuMo.tif"), overwrite = TRUE)
 
 
-
 # read in DEM and convert to slope
-
 DEM <- rast(file.path(spatialOutDir, "DEM_BuMo.tif"))
 # reproject to template raster
 
@@ -340,3 +318,24 @@ DEM <- project(DEM, bcrast)
 # convert to slope
 slope <- terra::terrain(DEM, v = "slope", neighbors = 8, unit = "degrees")
 writeRaster(slope, fs::path(spatialOutDir, "slope_BuMo.tif"), overwrite = TRUE)
+
+
+# NOTE THIS HAS NOT BEEN UPDATED AS YET
+# # extract points from Canadaian Fire Spread Dataset (note only goes up to 2021)
+# # CFSD - https://osf.io/f48ry/?view_only=
+# 
+# 
+# # testing with 2021 dataset
+# 
+# sd <- list.files(fs::path(spatialDir, "CFSD"), full.names = TRUE, recursive = TRUE, pattern = "Firegrowth_pts_v1_01_2018.csv$") # [3]
+# AOI <- st_read(file.path(spatialOutDir, "AOI.gpkg"))
+# 
+# sdf <- read.csv(sd)
+# sdf <- sdf |> filter(year > 2009)
+# sdf <- st_as_sf(sdf, coords = c("lon", "lat"), crs = 4326) |>
+#   st_transform(3005) |>
+#   st_intersection(AOI)
+# 
+# st_write(sdf, fs::path(spatialOutDir, "CFSD_2021.gpkg"), delete_layer = TRUE)
+
+
