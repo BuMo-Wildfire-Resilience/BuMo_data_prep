@@ -20,94 +20,20 @@ library(ggplot2)
 
 # get a list of the number of fires 
 
-# fire perimeters 
-
-# 1) Bcdata catalogue 
-
-get_fires <- function(aoi, out_dir) { #  cli::cli_alert_info("Downloading recent fire disturbance (<20 years)")
-  
-  fire_records <- c(
-    "cdfc2d7b-c046-4bf0-90ac-4897232619e1",
-    "22c7cb44-1463-48f7-8e47-88857f207702"
-  )
-  
-  get_one_fire <- function(id) {
-    fires <- bcdata::bcdc_query_geodata(id) |>
-      bcdata::filter(bcdata::INTERSECTS(aoi)) |>
-      bcdata::collect()
-    if (nrow(fires) > 0) {
-      fires <- fires |>
-        dplyr::select(
-          "id", "FIRE_NUMBER", "VERSION_NUMBER", "FIRE_YEAR",
-          "FIRE_SIZE_HECTARES", "LOAD_DATE"
-        ) |>
-        sf::st_intersection(aoi) |>
-        # filter for recent fires
-        dplyr::filter(as.numeric(format(Sys.time(), "%Y")) - .data$FIRE_YEAR <= 20)
-    }
-    fires
-  }
-  
-  fires_all <- get_multi_datasets(fire_records, get_one_fire)
-  
-  if (all(is.na(fires_all)) || nrow(fires_all) == 0) {
-    cli::cli_alert_warning("No recent fire disturbance in area of interest")
-  } else {
-    sf::st_write(fires_all, fs::path(out_dir, "fire.gpkg"), append = FALSE)
-    cli::cat_line()
-    cli::cli_alert_success("fire layers downloaded and to written to {.path {out_dir}}")
-  }
-}
-
-
-
-
-
-
-# based on historic fires from 2010 onwards - up to 2023 yr
+# fire perimeters - bc data catalogue
 hist <- st_read(fs::path(spatialOutDir,'HistoricFire.gpkg')) |> 
   dplyr::filter(FIRE_YEAR >2002)
 
-# NEED TO ADD 2024 fires 
-
-
-
 # how many fires are within the admin boundary? This is those which are within or touching the AOI boundary
-
 aoi_internal <- st_read(fs::path(spatialOutDir,'AOI_Admin.gpkg'))
-fires_aoi <- hist |> st_intersection(aoi_internal)
 
-fires <- hist %>% 
-  mutate(central_aoi = ifelse(FIRE_NUMBER %in% fires_aoi$FIRE_NUMBER, TRUE, FALSE)) |> 
-  #filter(FIRE_NUMBER %in% fires_aoi$FIRE_NUMBER)|> 
-  st_write(fs::path(spatialOutDir,'fires_perims_20022023.gpkg'),overwrite = TRUE)
+fire_aoi <- hist %>%
+  filter(st_intersects(., aoi_internal, sparse = FALSE)) |> 
+  dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_CAUSE,FIRE_SIZE_HECTARES,FIRE_DATE) 
 
+# summary of fires 
 
-
-# fires within the BEC zones 
-
-bec <- st_read(fs::path(spatialOutDir,'BEC_BuMo.gpkg')) |> 
-  dplyr::select(c(ZONE, geom, MAP_LABEL))  |> 
- dplyr::filter(ZONE %in% c("ESSF", "SBS"))
-
-fires_bec <- fires |> 
-  filter(central_aoi == TRUE) |>  
-  st_intersection(bec)
-
-
-fires <- fires %>% 
-  mutate(bec_zones = ifelse(FIRE_NUMBER %in% fires_bec$FIRE_NUMBER, TRUE, FALSE)) |> 
-  #filter(FIRE_NUMBER %in% fires_aoi$FIRE_NUMBER)|> 
-  st_write(fs::path(spatialOutDir,'fires_perims_20022023.gpkg'), overwrite = TRUE)
-
-
-# lets only keep fires that are overlapping the admin_aoi and BEC zones
-
-# unique fires per year convert m2 to ha 
-# note only keeping the fires which overlap the admin boundary
-
-sum <- fires |>  
-  filter(central_aoi == TRUE) |>  
+sum <- fire_aoi |>  
   dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_CAUSE)|> 
   dplyr::mutate(area = st_area(geom)) |> 
   st_drop_geometry() |> 
@@ -118,16 +44,19 @@ sum <- fires |>
   mutate(fire_size = case_when(area_ha < 100 ~  'small',
                                area_ha >= 100 & area_ha < 500 ~ 'medium',
                                area_ha >= 500 & area_ha < 1000 ~ 'large',
-                               area_ha >=1000 ~ 'very_large'))
+                               area_ha >= 1000 & area_ha < 10000 ~ 'very_large',
+                               area_ha >=10000 ~ 'uber_large'))
+
+
+#st_write(fire_aoi, fs::path(spatialOutDir,'fires_perims_20022024.gpkg'),overwrite = TRUE)
 
 
 #fires >= 100 ha = fire severity mapping province 
 # MODIS >= 500 ha for hotspot analysis
 
-
 # total no of fire (all BEC zones)
 # plot no of fires per year and area
-ggplot(sum, aes(x = factor(fire_size, level = c("small", "medium", "large", "very_large")))) +
+ggplot(sum, aes(x = factor(fire_size, level = c("small", "medium", "large", "very_large", "uber_large")))) +
   geom_bar(position = "dodge") +
   facet_wrap(~FIRE_YEAR) + 
   xlab('Fire size') 
@@ -140,8 +69,7 @@ fires_peryr <- sum |>
   dplyr::arrange(desc(n_fires)) |> 
   pivot_wider(names_from = fire_size, values_from = n_fires, id_cols = FIRE_YEAR)  |> 
   arrange(FIRE_YEAR)|> 
-  select(FIRE_YEAR, small, medium, large, very_large)
-
+  select(FIRE_YEAR, small, medium, large, very_large, uber_large)
 
 fires_tot <-  sum |> 
   dplyr::group_by(FIRE_YEAR, fire_size) |> 
@@ -149,9 +77,8 @@ fires_tot <-  sum |>
   #dplyr::arrange(desc(n_fires)) |> 
   pivot_wider(names_from = fire_size, values_from = total_area_ha, id_cols = FIRE_YEAR) |> 
   arrange(FIRE_YEAR) |> 
-  select(FIRE_YEAR, small, medium, large, very_large)
+  select(FIRE_YEAR, small, medium, large, very_large, uber_large)
   
-
 write.csv(fires_peryr, fs::path(dataOutDir,'fires_count_yr_20022024.csv'), row.names = FALSE)
 write.csv(fires_tot, fs::path(dataOutDir,'fires_ha_yr_20022024.csv'), row.names = FALSE)
 
@@ -178,18 +105,33 @@ ggplot(sum, aes(x = FIRE_YEAR)) +
 
 
 
-# review of bec 
-
-bfires <- fires_bec  |>  
-  filter(central_aoi == TRUE) |>  
-  dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_CAUSE, ZONE)
+### Look at BEC ####################
 
 
-st_write(bfires, fs::path(spatialOutDir,'fires_bec_20022023.gpkg'), overwrite = TRUE)
+# filter fires by target BEC zones 
+bec <- st_read(fs::path(spatialOutDir,'BEC_BuMo.gpkg')) |> 
+  dplyr::select(c(ZONE, geom, MAP_LABEL, NATURAL_DISTURBANCE))  |> 
+  dplyr::filter(ZONE %in% c("ESSF", "SBS","SBPS"))
 
-#|> 
-  dplyr::mutate(area = st_area(geom)) |> 
-  st_drop_geometry() 
+fires_bec <- fire_aoi |> 
+  st_intersection(bec) |> 
+  mutate(area =  st_area(geom)) |> 
+  st_drop_geometry() |> 
+  dplyr::mutate(bec_area_burnt = as.numeric(area)/10000)  
+           
+fires_sum <- sum |> select(FIRE_NUMBER, fire_size, area_ha)
+
+fires_bec <- left_join(fires_bec, fires_sum, by = join_by(FIRE_NUMBER))
+
+ggplot(fires_bec, aes(y = area_ha, x = NATURAL_DISTURBANCE, colour = fire_size)) +
+  geom_point() +
+  theme_minimal()
+
+
+
+
+
+
 
 
 
