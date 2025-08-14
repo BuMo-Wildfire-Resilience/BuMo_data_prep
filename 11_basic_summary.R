@@ -1,6 +1,6 @@
 # summary of fires for BuMO from 2010 onwards 2010 - 2023 fire season? 
 
-# lsetup folders for Gen's machine. 
+# setup folders for Gen's machine. 
 
 DataDir <- 'data'
 spatialDir <- fs::path(DataDir,'spatial')
@@ -22,7 +22,11 @@ library(ggplot2)
 
 # fire perimeters - bc data catalogue
 hist <- st_read(fs::path(spatialOutDir,'HistoricFire.gpkg')) |> 
-  dplyr::filter(FIRE_YEAR >2002)
+  dplyr::filter(FIRE_YEAR >2013)
+
+sort(unique(FIRE_YEAR <- hist$FIRE_YEAR))
+
+
 
 # how many fires are within the admin boundary? This is those which are within or touching the AOI boundary
 aoi_internal <- st_read(fs::path(spatialOutDir,'AOI_Admin.gpkg'))
@@ -30,6 +34,9 @@ aoi_internal <- st_read(fs::path(spatialOutDir,'AOI_Admin.gpkg'))
 fire_aoi <- hist %>%
   filter(st_intersects(., aoi_internal, sparse = FALSE)) |> 
   dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_CAUSE,FIRE_SIZE_HECTARES,FIRE_DATE) 
+
+
+
 
 # summary of fires 
 
@@ -48,7 +55,7 @@ sum <- fire_aoi |>
                                area_ha >=10000 ~ 'uber_large'))
 
 
-#st_write(fire_aoi, fs::path(spatialOutDir,'fires_perims_20022024.gpkg'),overwrite = TRUE)
+st_write(fire_aoi, fs::path(spatialOutDir,'fires_perims_20142024.gpkg'),overwrite = TRUE)
 
 
 #fires >= 100 ha = fire severity mapping province 
@@ -69,7 +76,8 @@ fires_peryr <- sum |>
   dplyr::arrange(desc(n_fires)) |> 
   pivot_wider(names_from = fire_size, values_from = n_fires, id_cols = FIRE_YEAR)  |> 
   arrange(FIRE_YEAR)|> 
-  select(FIRE_YEAR, small, medium, large, very_large, uber_large)
+  select(FIRE_YEAR, small, medium, large, very_large, uber_large) 
+
 
 fires_tot <-  sum |> 
   dplyr::group_by(FIRE_YEAR, fire_size) |> 
@@ -77,10 +85,13 @@ fires_tot <-  sum |>
   #dplyr::arrange(desc(n_fires)) |> 
   pivot_wider(names_from = fire_size, values_from = total_area_ha, id_cols = FIRE_YEAR) |> 
   arrange(FIRE_YEAR) |> 
-  select(FIRE_YEAR, small, medium, large, very_large, uber_large)
-  
-write.csv(fires_peryr, fs::path(dataOutDir,'fires_count_yr_20022024.csv'), row.names = FALSE)
-write.csv(fires_tot, fs::path(dataOutDir,'fires_ha_yr_20022024.csv'), row.names = FALSE)
+  select(FIRE_YEAR, small, medium, large, very_large, uber_large) 
+
+write.csv(fires_peryr, fs::path(dataOutDir,'fires_count_yr_20142024.csv'), row.names = FALSE)
+write.csv(fires_tot, fs::path(dataOutDir,'fires_ha_yr_20142024.csv'), row.names = FALSE)
+
+
+
 
 
 ## Notes : 
@@ -104,7 +115,7 @@ ggplot(sum, aes(x = FIRE_YEAR)) +
   theme_minimal()
 
 
-
+#######################################
 ### Look at BEC ####################
 
 
@@ -115,7 +126,12 @@ bec <- st_read(fs::path(spatialOutDir,'BEC_BuMo.gpkg')) |>
 
 fires_bec <- fire_aoi |> 
   st_intersection(bec) |> 
-  mutate(area =  st_area(geom)) |> 
+  mutate(area =  st_area(geom)) 
+
+st_write(fires_bec, fs::path(spatialOutDir,'fires_perims_bec_20142024.gpkg'),overwrite = TRUE)
+
+  
+fires_bec <- fires_bec 
   st_drop_geometry() |> 
   dplyr::mutate(bec_area_burnt = as.numeric(area)/10000)  
            
@@ -128,21 +144,42 @@ ggplot(fires_bec, aes(y = area_ha, x = NATURAL_DISTURBANCE, colour = fire_size))
   theme_minimal()
 
 
+fires_bec_top <- fires_bec |> 
+  group_by(FIRE_NUMBER) |> 
+  slice_max(bec_area_burnt)
+
+ggplot(fires_bec_top, aes(y = area_ha, x = NATURAL_DISTURBANCE, colour = fire_size)) +
+  geom_point() +
+  theme_minimal()
 
 
+## NDT classifications
+# NDT 1: Ecosystems with rare stand‐initiating events ......................................... 3
+# NDT 2: Ecosystems with infrequent stand‐initiating events .............................. 3
+# NDT 3: Ecosystems with frequent stand‐initiating events ................................. 4
+# NDT 4: Ecosystems with frequent stand‐maintaining fires ................................ 4
+# NDT 5: Alpine tundra and subalpine parkland ...................................................
 
 
+# how much area is there per BEC
+
+bec_sum <- bec |> 
+  mutate(area =  st_area(geom)) |> 
+  st_drop_geometry() |> 
+  dplyr::mutate(bec_area = as.numeric(area)/10000) |> 
+  group_by(NATURAL_DISTURBANCE) |> 
+  summarise(area_ha = sum(bec_area))
+
+ggplot(bec_sum , aes(y = area_ha , x = NATURAL_DISTURBANCE)) +
+  geom_point() +
+  theme_minimal()
+
+ggplot(fires_bec_top, aes(y = area_ha, x = NATURAL_DISTURBANCE, colour = fire_size)) +
+  geom_point() +
+  theme_minimal()
 
 
-
-
-
-
-
-
-
-
-
+#######################################
 
 
 
