@@ -161,8 +161,23 @@ if (!file.exists(BEC_file)) {
 burn_file <- file.path(spatialOutDir, "BurnSeverity.gpkg")
 if (!file.exists(burn_file)) {
   # BurnSeverityP<-get_data_fn('WHSE_FOREST_VEGETATION.VEG_BURN_SEVERITY_SAME_YR_SP','BurnSeverityP', AOI)
-  BurnSeverityP <- get_data_fn_clip("WHSE_FOREST_VEGETATION.VEG_BURN_SEVERITY_SAME_YR_SP", "BurnSeverity", AOI)
+  BurnSeverityP <- get_data_fn_clip("WHSE_FOREST_VEGETATION.VEG_BURN_SEVERITY_SAME_YR_SP", "BurnSeverity_syr", AOI)
   #write_sf(BurnSeverity, file.path(spatialOutDir, "BurnSeverity.gpkg"), layer_options = "OVERWRITE=true", append = FALSE, delete_dsn = TRUE)
+  
+  
+ # check why same yr is missing 
+    df <- bcdata::bcdc_query_geodata("WHSE_FOREST_VEGETATION.VEG_BURN_SEVERITY_SAME_YR_SP") |>
+      #bc#data::filter(bcdata::INTERSECTS(AOI)) |>
+      # bcdata::select(c("BCLCS_LEVEL_2", "BCLCS_LEVEL_4", "PROJ_AGE_CLASS_CD_1", "SPECIES_CD_1")) |> # Treed sites
+      bcdata::collect()
+    df <- df %>% dplyr::mutate(areaHa = as.numeric(st_area(.) * 0.0001))
+    st_crs(df) <- 3005
+    write_sf(df, file.path(spatialOutDir, "BurnSeverity_syr_BC.gpkg"), delete_layer = TRUE)
+  
+  
+  
+  
+  
   
   #BurnSeverityHP <- get_data_fn("WHSE_FOREST_VEGETATION.VEG_BURN_SEVERITY_SP", "BurnSeverityHP")
   #BurnSeverityH <- BurnSeverityHP %>% st_intersection(AOI)
@@ -289,6 +304,7 @@ library(purrr)
 # NBAC
 
 nbacs <- list.files(fs::path(spatialDir, "NBAC"), full.names = TRUE, recursive = TRUE, pattern = ".shp$")
+nbacs <- nbacs[13:23]
 #AOI <- st_read(file.path(spatialOutDir, "AOI.gpkg"))
 
 nbac_int <- map(nbacs, function(i) {
@@ -297,7 +313,10 @@ nbac_int <- map(nbacs, function(i) {
     st_intersection(AOI)
 }) |> bind_rows()
 
-st_write(nbac_int, fs::path(spatialOutDir, "NBAC_20022024.gpkg"), delete_layer = TRUE)
+#nbac <- nbac_int |> 
+#  filter(YEAR >2013)
+
+st_write(nbac_int, fs::path(spatialOutDir, "NBAC_20142024.gpkg"), delete_layer = TRUE)
 
 
 
@@ -313,8 +332,9 @@ writeRaster(bcrast, fs::path(spatialOutDir, "template_BuMo.tif"), overwrite = TR
 # read in DEM and convert to slope
 DEM <- rast(file.path(spatialOutDir, "DEM_BuMo.tif"))
 # reproject to template raster
-
 DEM <- project(DEM, bcrast)
+DEM <- writeRaster(DEM, fs::path(spatialOutDir, "DEM3005_BuMo.tif"))
+
 # convert to slope
 slope <- terra::terrain(DEM, v = "slope", neighbors = 8, unit = "degrees")
 writeRaster(slope, fs::path(spatialOutDir, "slope_BuMo.tif"), overwrite = TRUE)
