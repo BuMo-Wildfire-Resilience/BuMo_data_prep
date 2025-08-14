@@ -20,8 +20,7 @@ library(sf)
 # get list of fires
 
 # This is a .gpkg of fire perimeters
-fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20102023bece.gpkg")) |> 
-  filter(central_aoi == TRUE) # albers
+fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20142024.gpkg")) 
 
 # point to dob dir # these are wgs84 
 dob_dir <- fs::path(spatialOutDir, "DOB")
@@ -29,18 +28,17 @@ dob_dir <- fs::path(spatialOutDir, "DOB")
 
 # DOB rasters (can't stack because different extents)
 DOB_list <- list.files(dob_dir,
-                       pattern = "*dob.tif", 
+                       pattern = "*firearrival_decimal_krig.tif", 
                        recursive = TRUE, 
                        full.names=TRUE)
 #DOB_list <- DOB_list[!grepl("n83", DOB_list)]
 
 #-----------------DOB to fire runs-----------------#
 for (i in 1:length(DOB_list)){
-  
- # i <- 1
+  #i <- 1
   
   dobname <- gsub("out/spatial/DOB/", "", DOB_list[i])
-  dobfire <- gsub("/dob.tif", "",  dobname )
+  dobfire <- gsub("/firearrival_decimal_krig.tif", "",  dobname )
     
   DOB <- rast(DOB_list[i])
   # Round DOB values to whole numbers
@@ -68,6 +66,6 @@ for (i in 1:length(DOB_list)){
   
   # Substitute DOB values for prop burned values
   runs <- subst(DOB, from = prop_burned$value, prop_burned$prop_burned$count)
-  writeRaster(runs, fs::path(dob_dir, dobfire, "firerun.tif"),  overwrite = TRUE)
+  writeRaster(runs, fs::path(dob_dir, dobfire, "csfd_firerun.tif"),  overwrite = TRUE)
   
 }
