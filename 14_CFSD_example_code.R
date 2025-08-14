@@ -2,7 +2,6 @@
 # CFSDB - Estimate day of burning and extract covariates
 # Quinn Barber, October 2023
 ##############################################################################
-
 # This code interpolates fire detection hotspots for a single fire and extracts
 # environmental covariates based on the interpolated day of burn. The full Canadian
 # Fire Spread Database (CFSDB) requires running this code over all NBAC fires over
@@ -14,6 +13,16 @@
 
 # For comprehensive code using the National Burned Area Composite, contact Quinn Barber
 # quinn.barber@nrcan-rncan.gc.ca
+
+
+#######################################################################
+# Gen's how to detailed notes: 
+
+# First step is to down load the fire predictive spread data set : https://osf.io/f48ry/files/osfstorage
+
+
+
+
 
 ## test another method ffor fire detections from single fire event
 library(terra)
@@ -49,23 +58,30 @@ fire.perims <- st_transform(fire.perims, 4326)
 
 # get cfsd dataset (# testing 2018 dataset)
 
-sd <- list.files(fs::path(spatialDir, 'CFSD'), full.names = TRUE, recursive = TRUE, pattern = "Firegrowth_pts_v1_01_2018.csv$")#[3]
+#sd <- list.files(fs::path(spatialDir, 'CFSD'), full.names = TRUE, recursive = TRUE, pattern = "Firegrowth_pts_v1_01_2018.csv$")#[3]
 AOI <- st_read(file.path(spatialOutDir,"AOI.gpkg"))
 
 # read in template 
 bcrast <- rast(fs::path(spatialOutDir, "template_BuMo.tif"))
 
 
+# loop through all the fires and model the spread 
+
+fire_loop <- sort(unique(fire.perims$FIRE_NUMBER))
+
+
+all_fires <- purrr::map(fire_loop, function(f){
+  
+  f = fire_loop[129]
+  
 # read in the example dataset 
+#
+  perimeter  <- fire.perims |> filter(FIRE_NUMBER == f)
 
-fire <- fire.perims |> 
-  filter(FIRE_NUMBER == "R21721")
-
-perimeter <- fire
-perimeter <- st_transform(perimeter, crs(bcrast))
+  perimeter <- st_transform(perimeter, crs(bcrast))
 # read in hotspots 
 
-hotspots <- st_read(fs::path(spatialOutDir, "DOB", "R21721","R21721_hotspots.gpkg")) 
+hotspots <- st_read(fs::path(spatialOutDir, "DOB", f ,paste0(f,"_hotspots.gpkg")) 
 
 hotspots <- vect(hotspots)
 hotspots <- terra::project(hotspots, crs(bcrast))
