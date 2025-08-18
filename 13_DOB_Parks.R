@@ -54,11 +54,8 @@ OutDir <- 'out'
 dataOutDir <- file.path(OutDir,'data')
 spatialOutDir <- file.path(OutDir,'spatial')
 
-
-
 # This is a .gpkg of fire perimeters
-fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20102023bece.gpkg")) |> 
-   filter(central_aoi == TRUE)
+fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20142024.gpkg")) 
 fire.perims <- st_transform(fire.perims, 4326)
 
 # Set the output pixel size here. Canadian folk might want to consider 100 or 200 m.
@@ -83,181 +80,31 @@ the.prj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0
 ## Get MODIS fire detections
 #setwd('C:/temp/sample.DOB.code/sample.fire.detections/')
 
-if (file.exists(fs::path("data", "spatial", "Hotspots", "hotspots_all.gpkg"))) {
-  hotspots <- st_read(fs::path("data", "spatial", "Hotspots", "hotspots_all.gpkg"))
-} else {
-  hs_dir <- fs::path("data", "spatial", "Hotspots", "MODIS")
-  all_files <- list.files(hs_dir, recursive = TRUE)
 
-  mods <- purrr::map(all_files, function(x) {
-    # x <- all_files[2]
-    tfile <- read.csv(fs::path(hs_dir, x))
-    tfile <- tfile[, c("latitude", "longitude", "acq_date", "acq_time", "satellite", "instrument")]
-    tsf <- st_as_sf(tfile, coords = c("longitude", "latitude"), crs = 4326)
-    st_geometry(tsf) <- "geom"
-    tsf_int <- st_intersects(tsf, fire.perims, sparse = FALSE)
-    tsf_sub <- tsf[apply(tsf_int, 1, any), ]
-    tsf_sub
-    # mapview::mapview(tsf_sub)
-  }) |> bind_rows()
-
-  # viirs
-  vr_dir <- fs::path("data", "spatial", "Hotspots", "VIIRS")
-  all_files <- list.files(vr_dir, recursive = TRUE)
-
-  virs <- purrr::map(all_files, function(x) {
-    # x <- all_files[2]
-    tfile <- read.csv(fs::path(vr_dir, x))
-    tfile <- tfile[, c("latitude", "longitude", "acq_date", "acq_time", "satellite", "instrument")]
-    tsf <- st_as_sf(tfile, coords = c("longitude", "latitude"), crs = 4326)
-    st_geometry(tsf) <- "geom"
-    tsf_int <- st_intersects(tsf, fire.perims, sparse = FALSE)
-    tsf_sub <- tsf[apply(tsf_int, 1, any), ]
-    tsf_sub
-    # mapview::mapview(tsf_sub)
-  }) |> bind_rows()
-
-
-  # Combine MODIS and VIIRS
-  hotspots <- rbind(mods, virs) # Combine MODIS and VIIRS
- 
-  hotspots <- hotspots |> 
-    mutate(fire_year = year(acq_date)) 
-
-  st_write(hotspots, fs::path("data", "spatial", "Hotspots", "hotspots_all.gpkg"), append = FALSE)
-}
-
-
-
-# lets review an example 
-#year = 2018
-#"R21721"
-
-# create an output folder 
-
-if(!dir.exists(fs::path(spatialOutDir, "DOB"))) {
-  dir.create(fs::path(spatialOutDir, "DOB"))
-}
+hotspots <- st_read(fs::path("data", "spatial", "Hotspots", "hotspots_all_20102024.gpkg"))
 
 dob_dir <- fs::path(spatialOutDir, "DOB")
-
 
 # read in fire perimeters and extract the hotspots per fire. 
 
 fire.list <- unique(fire.perims$FIRE_NUMBER)
 
-for (xx in 1:length(fire.list)) {
-  
-  #xx <- 1
-  fire <- fire.list[[xx]]
-  
-  fire.shp <- subset(fire.perims, FIRE_NUMBER == fire)
-  fire.shp.prj <- st_transform(fire.shp, crs=the.prj)
-  fire.shp.buffer.prj <- st_buffer(fire.shp.prj, dist=750)
-  fire.shp.buffer.dd <- st_transform(fire.shp.buffer.prj, crs(fire.shp))
-  
-  fire_year_perim = unique(fire.shp$FIRE_YEAR)
-  # If there are clearly times when a fire should not be burning, those boundaries can be set here. Sometimes the fire detection
-  # data picks up on industrial activities or slash pile burning or ???. The numbers correspond to Julian day.
-  
-  min.date <- 100
-  max.date <- 330
-  
-  
-  # Again, if there are dates for specific fires that are invalid, they can be stated here. The numbers correspond to Julian day.
-  
-  if (fire == 'MT4715311245620170723') {
-    min.date <- 200; max.date <- 300 }
-  
-  
-  # This actually selects fire detections points relevant to the fire of interest
-  
-  fire.hotspots <- hotspots[fire.shp.buffer.dd,]
-  
-  fire.hotspots <- fire.hotspots[fire.hotspots$fire_year == fire_year_perim,]
-  
-  
-  if (nrow(fire.hotspots) > 0 ) {
-    
-    ## convert to local day/time based in time zone
-    ## loc_JDT = local julian date with decimals (this is used for the interpolation)
-    ## Changes time to Mountain Standard Time. Modify as appropriate.
-    
-    fire.hotspots$date <- as.numeric(yday(fire.hotspots$acq_date)) #convert acq_date to julian day
-    fire.hotspots$time <- as.numeric(format(fire.hotspots$acq_time, digits=4))/2400 #convert acq_time to a decimal
-    fire.hotspots$loc_JDT <- round(fire.hotspots$date + fire.hotspots$time - 7/24, 2) ## subtracting seven hours converts GMT to Mountain standard time
-    
-    ## One modification you might want to consider is "shifting" the fire detections so that those detections that occur shortly after midnight 
-    ## are assigned to the previous day. For example, you might want those fire detections from midnight and 4am to be assigned to the previous day. 
-    ## You can make this adjustment where the change from GMT to local time is made by subtracting four hours, as shown below.
-    ## Please note that I have no idea if this is a good idea, but the topic/idea has come up. 
-    ## Also, this shift can be any window you want (e.g. 2 hrs, 6 hrs, or 9 hrs) and may be a better idea in forest vs. shrub/grass
-    
-    ## fire.hotspots$loc_JDT <- round(fire.hotspots$loc_JDT - 4/24, 2) ## subtracting four hours to account for the "shift" described above.
-    
-    
-    ## If there are clearly invalid dates, use this.
-    fire.hotspots <- subset(fire.hotspots, loc_JDT > min.date & loc_JDT < max.date)
-    
-    # Assigns and ID for accounting later
-    
-    fire.hotspots$ID <- seq(1, nrow(fire.hotspots))
-    
-    # This removes fire detections with the same location; they may be on the same date or different dates.
-    # This selects the earlier date if there are more than fire detection with the same coordinate.
-    # The coordinates function is also needed for finding the nearest neighbors each fire detection.
-    
-    modis.coords <- as.data.frame(st_coordinates(fire.hotspots))
-    colnames(modis.coords) <- c('x','y')
-    coord.df <- as.data.frame(modis.coords)
-    coord.df$ID <- fire.hotspots$ID
-    coord.df$DOB <- fire.hotspots$loc_JDT
-    unique.coord.df <- unique(as.data.frame(modis.coords))
-    
-    for (rec in 1:nrow(unique.coord.df)) {
-      subset <- subset(coord.df, x == unique.coord.df[rec,]$x & y == unique.coord.df[rec,]$y)
-      if (nrow(subset) >= 2) {
-        for (j in 2:nrow(subset)) {
-          ID <- subset[j,]$ID
-          fire.hotspots <- fire.hotspots[fire.hotspots$ID != ID,] 
-        }
-      }
-    }	
-    
-    fire.hotspots <- subset(fire.hotspots, select=c('ID', 'acq_date', 'acq_time', 'satellite', 'date', 'time', 'loc_JDT'))
-    
-    if(!dir.exists(fs::path(dob_dir, fire))) {
-      dir.create(fs::path(dob_dir, fire))
-      cli::cli_alert("creating new folder")
-      }
-    #setwd(paste0('C:/temp/sample.dob.code/DOB/', fire))
-    file.name <- paste(fire, '_hotspots.gpkg', sep='')
-    st_write(fire.hotspots, fs::path(dob_dir, fire, file.name), delete_layer=TRUE)
-    plot(fire.hotspots[5]) ## plot using date field
-  }
-}
-
-
-
-
-
-
-###################
-# End of Stage 1
-###################
-
-#####################################################################################
-#####################################################################################
-# Stage 2: this generates the preliminary modeled day of burning (DOB)  #############
-#####################################################################################
-#####################################################################################
-
-# This code will generate estimated day-of-burning based on an interpolation method I made up called 'Weighed by Mean and Distance' (WMD).
-
+# ###################
+# # End of Stage 1
+# ###################
+# 
+# #####################################################################################
+# #####################################################################################
+# # Stage 2: this generates the preliminary modeled day of burning (DOB)  #############
+# #####################################################################################
+# #####################################################################################
+# 
+# # This code will generate estimated day-of-burning based on an interpolation method I made up called 'Weighed by Mean and Distance' (WMD).
+# 
 
 for (xx in 1:length(fire.list)) {
   
-  #xx <- 19
+ # xx <- 1
   # Get fire name and set WD
   
   fire <- as.character(fire.list[xx])
@@ -291,8 +138,6 @@ for (xx in 1:length(fire.list)) {
   ## Some perimeters may have zero fire detections, so a directory may not have been created in stage 1
   if (dir.exists(fs::path(dob_dir, fire)) == T) {
     
-    # Get fire detetection points
-    #setwd(paste0('C:/temp/sample.dob.code/DOB/', fire))
     fire.hotspots <- st_read(fs::path(dob_dir, fire, paste0(fire, '_hotspots.gpkg')), quiet = TRUE)
     fire.hotspots <- st_transform(fire.hotspots, crs=the.prj)
     
@@ -410,9 +255,9 @@ for (xx in 1:length(fire.list)) {
       
       modeled.dob <- rast(xyz, type = "xyz", digits=0, crs=the.prj) 
       writeRaster(modeled.dob, fs::path(dob_dir , fire, 'dob.tmp.tif'), datatype='INT2S', overwrite=T)
-      plot(modeled.dob, 
-           main = paste0(fire, '\nday of burning interpolation'),
-           axes = FALSE)
+      #plot(modeled.dob, 
+      #     main = paste0(fire, '\nday of burning interpolation'),
+      #     axes = FALSE)
       
     }
   } else {
@@ -450,9 +295,7 @@ for (xx in 1:length(fire.list)) {
     in_dir <- fs::path(dob_dir, fire)
     
     # Load up the modeled DOB
-    
     modeled.dob.raster <- rast(fs::path(in_dir, 'dob.tmp.tif'))
-    
     
     # Basically, these next steps create 'regions' for all continuous DOB estimates that are less than 25 ha
     # The value below, 278, should be modified to account for the cell size you are using

@@ -118,7 +118,6 @@ if (file.exists(fs::path("data", "spatial", "Hotspots", "hotspots_all_20102024.g
 }
 
 
-
 # create an output folder 
 
 if(!dir.exists(fs::path(spatialOutDir, "DOB"))) {
@@ -132,11 +131,10 @@ dob_dir <- fs::path(spatialOutDir, "DOB")
 
 fire.list <- unique(fire.perims$FIRE_NUMBER)
 
-for (xx in 1:length(fire.list)) {
-  
-  #xx <- 1
+for (xx in 43:length(fire.list)) {
+  #xx <- 42
   fire <- fire.list[[xx]]
-  
+  print(fire)
   fire.shp <- subset(fire.perims, FIRE_NUMBER == fire)
   fire.shp.prj <- st_transform(fire.shp, crs=the.prj)
   fire.shp.buffer.prj <- st_buffer(fire.shp.prj, dist=750)
@@ -152,7 +150,6 @@ for (xx in 1:length(fire.list)) {
   min.date <- julian_start - 10
   max.date <- 330
   
-  
   # Again, if there are dates for specific fires that are invalid, they can be stated here. The numbers correspond to Julian day.
   
   if (fire == 'MT4715311245620170723') {
@@ -166,7 +163,9 @@ for (xx in 1:length(fire.list)) {
   fire.hotspots <- fire.hotspots[fire.hotspots$fire_year == fire_year_perim,]
   
   
-  if (nrow(fire.hotspots) > 0 ) {
+  if (nrow(fire.hotspots) == 0 ) {
+    cli::cli_alert_warning("No hotspots found for {fire}. Skipping...")
+  } else {
     
     ## convert to local day/time based in time zone
     ## loc_JDT = local julian date with decimals (this is used for the interpolation)
@@ -241,82 +240,86 @@ AOI <- st_read(file.path(spatialOutDir,"AOI.gpkg"))
 
 # read in template 
 bcrast <- rast(fs::path(spatialOutDir, "template_BuMo.tif"))
+fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20142024.gpkg"))
 
 # loop through all the fires and model the spread 
 
 fire_loop <- sort(unique(fire.perims$FIRE_NUMBER))
 
+all_fires <- purrr::map(fire_loop, function(f) {
+  #f <- fire_loop[19]
+  print(f)
 
-all_fires <- purrr::map(fire_loop, function(f){
-  
-  f = fire_loop[129]
-
-# read in the example dataset 
+  # read in the example dataset
 
   perimeter <- fire.perims |> filter(FIRE_NUMBER == f)
 
   perimeter <- st_transform(perimeter, crs(bcrast))
-  
-  # read in hotspots 
-  if(exists)
-  hotspots <- st_read(fs::path(spatialOutDir, "DOB", f, paste0(f,"_hotspots.gpkg")))
 
-  
-  if (file.exists(fs::path(spatialOutDir, "DOB", f, paste0(f,"_hotspots.gpkg"))))
-      hotspots <- st_read(fs::path(spatialOutDir, "DOB", f, paste0(f,"_hotspots.gpkg")))
-      
-  } else {
+  # read in hotspots
+  if (!file.exists(fs::path(spatialOutDir, "DOB", f, paste0(f, "_hotspots.gpkg")))) {
     cli::cli_alert_warning("No hotspots found for {f}. Skipping...")
-}
-  
-    
-  
-  
-hotspots <- vect(hotspots)
-hotspots <- terra::project(hotspots, crs(bcrast))
+  } else {
+    hotspots <- st_read(fs::path(spatialOutDir, "DOB", f, paste0(f, "_hotspots.gpkg")))
+    hotspots <- vect(hotspots)
+    hotspots <- terra::project(hotspots, crs(bcrast))
 
-#Spatially crop to perimeter + 1000 m
-perimeter_buf <- terra::buffer(vect(perimeter), 1000)
-hotspots  <- terra::crop(hotspots, perimeter_buf) 
+    # Spatially crop to perimeter + 1000 m
+    perimeter_buf <- terra::buffer(vect(perimeter), 1000)
+    hotspots <- terra::crop(hotspots, perimeter_buf)
+
+    # 2.0 Interpolation --------------------------------------------
+    # Here we use the subset hotspots and pre-defined perimeter to interpolate fire arrival time using kriging
+    grid.fire <- terra::crop(bcrast, perimeter)
+
+    grid.fire <- terra::rasterize(perimeter, grid.fire, fun = "max", field = 0)
+
+    grid.pt <- stars::st_as_stars(grid.fire)
+    grid.pt <- st_as_sf(grid.pt, as_points = TRUE, merge = FALSE)
+
+    # tz <- "C:/r_repo/2024_BuMo_fire/BuMo_data_prep/data/spatial/CFSD/Example_code/CFSDS_example_Nov2023/CFSDS_example_Nov2023"
+
+    # Time zone correction - here assume daylight savings time and only one time zone
+    # timezone <- vect(fs::path(tz, "Canada_Time_Zones.shp")) |>
+    #  terra::project(crs(bcrast))
+    # timezone <- terra::intersect(terra::centroids(vect(perimeter)), timezone)
+    # timezone <- st_as_sf(timezone) |>
+    # dplyr::select(LST_offset, LDT_offset)
+    # timezone_offset <- as.numeric(timezone$LDT_offset)
+
+    # hotspots$JDAYDEC <- hotspots$JDAYDEC - timezone_offset/24
+    hotspots <- st_as_sf(hotspots) # gstat needs sf
+
+    # kriging
+    dob.kriged <- gstat::variogram(date ~ 1, hotspots)
+    if (is.null(dob.kriged)) {
+      cli::cli_alert_warning("Unable to calculate the variogram for {f}. Skipping...")
+    } else {
+      dob.fit <- fit.variogram(dob.kriged, vgm(c("Exp", "Sph", "Mat")))
+      dob.kriged <- krige(date ~ 1, hotspots, grid.pt, model = dob.fit, nmax = 6)
+
+      # Assign values to grid, using GRID.FIRE as a base raster
+      grid.jday <- grid.fire
+      grid.jday[!is.na(grid.jday)] <- dob.kriged$var1.pred
+
+      writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_decimal_krig.tif"), overwrite = T)
+      grid.jday <- trunc(grid.jday)
+      writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_yday_krig.tif"), overwrite = T)
+    }
+  }
+})
 
 
-# 2.0 Interpolation --------------------------------------------
-# Here we use the subset hotspots and pre-defined perimeter to interpolate fire arrival time using kriging
-grid.fire <- terra::crop(bcrast, perimeter)
-
-grid.fire <- terra::rasterize(perimeter, grid.fire, fun="max", field=0)
-
-grid.pt <- stars::st_as_stars(grid.fire)
-grid.pt <- st_as_sf(grid.pt, as_points = TRUE, merge = FALSE)
+# summary of how many fires were processed
+all_fires <- list.files(fs::path(spatialOutDir, "DOB"), full.names = TRUE, recursive = TRUE, pattern = "firearrival_yday_krig.tif")
+# 81 fires processed
 
 
-#tz <- "C:/r_repo/2024_BuMo_fire/BuMo_data_prep/data/spatial/CFSD/Example_code/CFSDS_example_Nov2023/CFSDS_example_Nov2023"
-
-#Time zone correction - here assume daylight savings time and only one time zone
-#timezone <- vect(fs::path(tz, "Canada_Time_Zones.shp")) |> 
-#  terra::project(crs(bcrast))
-#timezone <- terra::intersect(terra::centroids(vect(perimeter)), timezone) 
-#timezone <- st_as_sf(timezone) |> 
-# dplyr::select(LST_offset, LDT_offset)
-#timezone_offset <- as.numeric(timezone$LDT_offset)
-
-#hotspots$JDAYDEC <- hotspots$JDAYDEC - timezone_offset/24
-hotspots <- st_as_sf(hotspots) #gstat needs sf
 
 
-library(gstat)
-#kriging
-dob.kriged <- gstat::variogram(date ~ 1, hotspots)
-dob.fit <- fit.variogram(dob.kriged, vgm(c("Exp", "Sph", "Mat")))
-dob.kriged <- krige(date~1, hotspots, grid.pt, model=dob.fit, nmax=6)
+# up to here 
 
-# Assign values to grid, using GRID.FIRE as a base raster
-grid.jday <- grid.fire
-grid.jday[!is.na(grid.jday)] <- dob.kriged$var1.pred
 
-writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", "R21721", "firearrival_decimal_krig.tif"), overwrite=T)
-grid.jday <- trunc(grid.jday)
-writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", "R21721", "firearrival_yday_krig.tif"), overwrite=T)
 
 
 
@@ -375,25 +378,6 @@ fire_index_sf  <- terra::crop(fire_index_sf, perimeter_buf)
 # Here we use the subset hotspots and pre-defined perimeter to interpolate fire arrival time using kriging
 grid.fire <- terra::crop(bcrast, perimeter)
 grid.fire <- terra::rasterize(perimeter, grid.fire, fun="max", field=0)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

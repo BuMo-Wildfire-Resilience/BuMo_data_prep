@@ -69,18 +69,3 @@ for (i in 1:length(DOB_list)){
   writeRaster(runs, fs::path(dob_dir, dobfire, "csfd_firerun.tif"),  overwrite = TRUE)
   
 }
-
-
-
-# check which fires are missing data 
-
-DOB_list # 81 
-missing_fires <- fire.perims$FIRE_NUMBER[!fire.perims$FIRE_NUMBER %in% gsub("/firearrival_decimal_krig.tif", "",  gsub("out/spatial/DOB/", "", DOB_list))]
-
-# get size of missing files 
-
-firesize <- fire.perims |> 
-  filter(FIRE_NUMBER %in% missing_fires) |> 
-  select(FIRE_NUMBER, FIRE_SIZE_HECTARES  ) |> 
-  arrange(desc(FIRE_SIZE_HECTARES  ))
-
