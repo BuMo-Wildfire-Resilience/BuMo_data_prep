@@ -320,6 +320,9 @@ st_write(nbac_int, fs::path(spatialOutDir, "NBAC_20142024.gpkg"), delete_layer =
 
 
 
+library(terra)
+library(sf)
+
 
 ##  generate some basic raster layers
 # crop terra raster to make a template
