@@ -131,7 +131,7 @@ dob_dir <- fs::path(spatialOutDir, "DOB")
 
 fire.list <- unique(fire.perims$FIRE_NUMBER)
 
-for (xx in 43:length(fire.list)) {
+for (xx in 1:length(fire.list)) {
   #xx <- 42
   fire <- fire.list[[xx]]
   print(fire)
