@@ -59,5 +59,12 @@ hl <- hli(dem)
 writeRaster(hl, fs::path(spatialOutDir, "heatloadindex_BuMo.tif"), overwrite = TRUE)
 
 
+#################################################
+
+
+
+
+
+
 
 
