@@ -104,8 +104,8 @@ create_closest_point_raster <- function(
   values(closest_id_raster) <- points[[id_column]]
   min_dist_raster <- first_dist
 
-  if(nrow(points) > 1){
-    for(i in 2:nrow(points)){
+  if(nrow(points_file) > 1){
+    for(i in 2:nrow(points_file)){
     # i = 3
       current_dist <- distance(raster_template, points_vect[i])
     
