@@ -1,6 +1,5 @@
 # 17_weather_BCwildfire_stations
 
-
 library(terra)
 library(sf)
 library(dplyr)
@@ -15,7 +14,6 @@ spatialDir <- fs::path(DataDir,'spatial')
 OutDir <- 'out'
 dataOutDir <- file.path(OutDir,'data')
 spatialOutDir <- file.path(OutDir,'spatial')
-
 
 
 # prepare files - only need to do this once
@@ -68,6 +66,74 @@ write.csv(mods, file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs
 
 
 
+# generate a raster based on the closest approximation to the weather station. 
+# Note one station (Sawtooth) was installed in 2018-11-04. This will impact the closest proximity 
+# station and will be calculated before and after this date. 
+# 
+
+st <- st_read( path(spatialDir, "weather", "BuMo", "bumo_weather_stations.gpkg"))
+st_pre2019 <- st |> filter(!STATION_NAME == "SAWTOOTH") # drop this as installed in nov 2018
+st_post2019 <- st
+
+# dont need this quite yet
+#we <- read_csv(file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
+
+# read in template and convert to points and coordinates
+dem <- rast(file.path(spatialOutDir, "DEM3005_BuMo.tif"))
+dem[dem > 1] <- 1
+dem[dem <1 ]<- 1
+raster_template = dem 
+
+
+
+create_closest_point_raster <- function(
+    points_file, 
+    template_raster = raster_template, 
+    id_column = "WEATHER_STATIONS_ID"){
+  
+  ## testing files 
+  #points_file <- st
+  #id_column = "WEATHER_STATIONS_ID"
+  ## end testing 
+  
+  # convert to vector  
+  points_vect <- vect(points_file)
+  
+  first_dist <- terra::distance(raster_template, points_vect[1])
+  closest_id_raster <- raster_template
+  values(closest_id_raster) <- points[[id_column]]
+  min_dist_raster <- first_dist
+
+  if(nrow(points) > 1){
+    for(i in 2:nrow(points)){
+    # i = 3
+      current_dist <- distance(raster_template, points_vect[i])
+    
+      closer_mask <- current_dist < min_dist_raster
+      values(closest_id_raster)[values(closer_mask) ==1] <- points[[id_column]][i]
+      values(min_dist_raster)[values(closer_mask)== 1]<- values(current_dist)[values(closer_mask)==1]
+    
+      if (i %% 10 == 0){
+        message(paste("processing point", i , "of", nrow(points)))
+        }
+      }
+    }
+  return(closest_id_raster)
+} 
+
+# generate the pre2019 and post2019 closest rasters 
+pre2019 <- create_closest_point_raster(points_file = st_pre2019)
+post2019 <- create_closest_point_raster(points_file = st_post2019)
+
+
+
+writeRaster(closest_id_raster, )
+plot(closest_id_raster)
+
+
+
+
+
 
 
 
@@ -79,11 +145,12 @@ library(lubridate)
 library(data.table)
 library(lutz)
 library(readr)
+library(sf)
 
 # load in helper functions... not sure why these are not part of the package? Note these have
 # been manually moved and copied on August 18th as they were not accessible within the package directly 
 
-source("17_csffdr_utils.r")
+source("17_csffdr_utils.R")
 
 st_bumo <- st_read( fs::path(spatialDir, "weather", "BuMo", "bumo_weather_stations.gpkg")) |> 
   select(STATION_NAME, LATITUDE, LONGITUDE) |> 
