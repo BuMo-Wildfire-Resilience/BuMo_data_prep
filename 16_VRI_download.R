@@ -15,6 +15,32 @@ dataOutDir <- file.path(OutDir,'data')
 spatialOutDir <- file.path(OutDir,'spatial')
 
 
+# create a template for the Bumo region 
+# read in template and convert to points and coordinates
+dem <- rast(file.path(spatialOutDir, "DEM3005_BuMo.tif"))
+dem[dem > 1] <- 1
+dem[dem <1 ]<- 1
+raster_template = dem 
+
+
+# download the VRI and historic VRI from the BCDATACATALOGUE (manual process)
+
+
+vri_dir <- fs::path("/home/user/Documents/00_data/base_vector/bc/VRI/")
+list.files(vri_dir)  
+
+list.files("home")
+  
+  system("type R")
+  
+  list.files("/home/user/Documents/00_data/base_vector/bc/VRI/")
+  
+  
+  list.files("usr")
+
+""
+
+
 ff <- st_read(fs::path(spatialOutDir,'fires_perims_20022023.gpkg')) |> 
   filter(central_aoi == TRUE) 
 
@@ -61,7 +87,7 @@ for (i in fyr){
 }
  
 names(vri)
-
+ system("type R")
 
 
 
@@ -76,4 +102,7 @@ get_VRI <- function(aoi, out_dir) {
     bcdata::select(c("BCLCS_LEVEL_2", "BCLCS_LEVEL_4", "PROJ_AGE_CLASS_CD_1", "SPECIES_CD_1")) |> # Treed sites
     bcdata::collect() |>
     dplyr::select(c("BCLCS_LEVEL_2", "BCLCS_LEVEL_4", "PROJ_AGE_CLASS_CD_1", "SPECIES_CD_1"))
+  
+  
+  
   
