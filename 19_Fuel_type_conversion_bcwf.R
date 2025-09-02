@@ -1,6 +1,20 @@
 # 19_fuel Type download 
 
-# fuel type is exracted in line 95 of the 01_load.r script. Note this is the 2024 dataset?
+# This script translates VRI data to fuel codes based for BC 
+
+# BC Wildfire Fuel Typing Algorithm in R
+# Converted from Python class by Gregory A. Greene
+# Author: Gregory A. Greene, map.n.trowel@gmail.com
+
+# Still to do: 
+# 1) detailed comparison with already generated datasets ie: BCWS historic fuel types
+# Note fuel type is exacted in line 95 of the 01_load.r script. Note this is the 2024 dataset?
+
+# Bugs and Other bits and pieces to fix bclcs_level_1
+# case when bclcs_level_1 = "U" unreported - might not be issue for outputs 
+
+
+# read in libraries
 
 library(sf)
 library(terra)
@@ -10,6 +24,9 @@ library(bcdata)
 library(dplyr)
 library(fs)
 library(purrr)
+library(lubridate)
+
+# designate paths 
 
 DataDir <- 'data'
 spatialDir <- fs::path(DataDir,'spatial')
@@ -18,83 +35,136 @@ OutDir <- 'out'
 dataOutDir <- file.path(OutDir,'data')
 spatialOutDir <- file.path(OutDir,'spatial')
 
-# read in the fuel type layer generated from the BCdata catalogue 
 
 
-# read in VRI 
+
+
+# read in VRI data. not this can be uupdated to TEF model outputs
+
+
+# example 1: read in VRI 
 vri_prep_dir <- file.path(spatialDir, "Fuel_types_BC", "VRI_prepped")
-
-# Fuel type for each year. 
-# convert to the base raster 
-
-
-# read in a test data set to try 
-
 vfiles <- list.files(vri_prep_dir)
 
+# use 2024 VRI data as a test 
 vrit <- st_read(path(vri_prep_dir, vfiles[10]))
 vrit <- mutate(vrit, BCWFT_RowRef = row_number())
+vdf <- vrit |> st_drop_geometry() 
 
-vdf <- vrit |> 
-  st_drop_geometry() 
+##  check the inputs 
+# str(vdf)
+# unique(vdf$COAST_INTERIOR_CD)
+# unique(vdf$BCLCS_LEVEL_1)
+# unique(vdf$BCLCS_LEVEL_2)
+# unique(vdf$BCLCS_LEVEL_3)
+# unique(vdf$EARLIEST_NONLOGGING_DIST_TYPE)
+# unique(vdf$EARLIEST_NONLOGGING_DIST_DATE)[2]#  "2023-05-31 17:00:00 PDT"
+# unique(vdf$HARVEST_DATE) #"2007-01-26 16:00:00 PST
 
-str(vdf)
-
-unique(vdf$COAST_INTERIOR_CD)
-unique(vdf$BCLCS_LEVEL_1)
-unique(vdf$BCLCS_LEVEL_2)
-unique(vdf$BCLCS_LEVEL_3)
-unique(vdf$EARLIEST_NONLOGGING_DIST_TYPE)
-unique(vdf$EARLIEST_NONLOGGING_DIST_DATE)[2]#  "2023-05-31 17:00:00 PDT"
-unique(vdf$HARVEST_DATE) #"2007-01-26 16:00:00 PST
-
-
-
-### Other bits and pieces to fix bclcs_level_1
-# case when bclcs_level_1 = "U" unreported
+rows <- vdf$BCWFT_RowRef[1:1000000]
 
 
+vdf_out <- purrr::map(rows, function(x){
+    # run through a single line (this will be converted to purrr) 
+   #x <- rows[1] 
+   vdf_line <- vdf[x,]
+    
+    # NOTE - need to run all code below before running this section 
+    line_result <- get_fuel_type(
+      season <- "growing",
+      coast_interior_cd <- vdf_line$COAST_INTERIOR_CD,
+      bclcs_level_1 = vdf_line$BCLCS_LEVEL_1,
+      bclcs_level_2 = vdf_line$BCLCS_LEVEL_2,
+      bclcs_level_3 = vdf_line$BCLCS_LEVEL_3,
+      bclcs_level_4 = vdf_line$BCLCS_LEVEL_4,
+      bclcs_level_5 = vdf_line$BCLCS_LEVEL_5,
+      bec_zone_code = vdf_line$BEC_ZONE_CODE,
+      bec_subzone = vdf_line$BEC_SUBZONE,
+      earliest_nonlogging_dist_type = vdf_line$EARLIEST_NONLOGGING_DIST_TYPE,
+      earliest_nonlogging_dist_date = vdf_line$EARLIEST_NONLOGGING_DIST_DATE,
+      harvest_date = vdf_line$HARVEST_DATE,
+      crown_closure = vdf_line$CROWN_CLOSURE,
+      proj_height_1 = vdf_line$PROJ_HEIGHT_1,
+      proj_age_1 = vdf_line$PROJ_AGE_1,
+      vri_live_stems_per_ha = vdf_line$VRI_LIVE_STEMS_PER_HA,
+      vri_dead_stems_per_ha = vdf_line$VRI_DEAD_STEMS_PER_HA,
+      stand_percentage_dead = vdf_line$STAND_PERCENTAGE_DEAD,
+      inventory_standard_cd = vdf_line$INVENTORY_STANDARD_CD,
+      non_productive_cd = vdf_line$NON_PRODUCTIVE_CD,
+      land_cover_class_cd_1 = vdf_line$LAND_COVER_CLASS_CD_1,
+      species_cd_1 = vdf_line$SPECIES_CD_1,
+      species_pct_1 = vdf_line$SPECIES_PCT_1,
+      species_cd_2 = vdf_line$SPECIES_CD_2,
+      species_pct_2 = vdf_line$SPECIES_PCT_2,
+      species_cd_3 = vdf_line$SPECIES_CD_3,
+      species_pct_3 = vdf_line$SPECIES_PCT_3,
+      species_cd_4 = vdf_line$SPECIES_CD_4,
+      species_pct_4 = vdf_line$SPECIES_PCT_4,
+      species_cd_5 = vdf_line$SPECIES_CD_5,
+      species_pct_5 = vdf_line$SPECIES_PCT_5,
+      species_cd_6 = vdf_line$SPECIES_CD_6,
+      species_pct_6 = vdf_line$SPECIES_PCT_6
+    )
+    
+    # join the line to the outputs - this can be tidies up further
+    #line_result
+    line_out <- tibble(
+      line_no = line_result$line_no[1],
+      fuel_type = line_result$fuel_type[1],
+      modifier = as.character(ifelse(is.null(line_result$modifier), "NULL", line_result$modifier[1])),
+    )
+    
+    out <- bind_cols(vdf_line, line_out)
+    
+    out
+    
+})|> bind_rows()
 
-########################################################################
-# BC Wildfire Fuel Typing Algorithm in R
-# Converted from Python class by Gregory A. Greene
-# Author: Gregory A. Greene, map.n.trowel@gmail.com
 
-## test row 
+write.csv(vdf_out, path(spatialDir, "Fuel_types_BC", "VRI_prepped", "test_fuel_type_output.csv"))
 
-season = "growing"
-coast_interior_cd = "I"
-bclcs_level_1 = "V" 
-bclcs_level_2 = "T" 
-bclcs_level_3 = "U" 
-bclcs_level_4 = "TC" 
-bclcs_level_5 = "OP" 
-bec_zone_code = "ESSF" 
-bec_subzone = "mc" 
-earliest_nonlogging_dist_type = "IBM" 
-earliest_nonlogging_dist_date = unique(vdf$EARLIEST_NONLOGGING_DIST_DATE)[2]
-harvest_date = unique(vdf$HARVEST_DATE)[2]
-crown_closure = 40 
-proj_height_1 = 17 
-proj_age_1 = 171 
-vri_live_stems_per_ha = 392 
-vri_dead_stems_per_ha = 40 
-stand_percentage_dead =NULL 
-inventory_standard_cd = "V" 
-non_productive_cd = NA 
-land_cover_class_cd_1 = "TC" 
-species_cd_1 = "SE" 
-species_pct_1 = 65 
-species_cd_2 = "BL" 
-species_pct_2 = 30 
-species_cd_3 = "PLI" 
-species_pct_3 = 5 
-species_cd_4 = NA 
-species_pct_4 = NA 
-species_cd_5 = NA 
-species_pct_5 = NA 
-species_cd_6 = NA 
-species_pct_6 = NA
+# still need to add this back to the spatial data file. 
+
+
+
+
+
+# ## test row 
+# season = "growing"
+# coast_interior_cd = "I"
+# bclcs_level_1 = "V" 
+# bclcs_level_2 = "T" 
+# bclcs_level_3 = "U" 
+# bclcs_level_4 = "TC" 
+# bclcs_level_5 = "OP" 
+# bec_zone_code = "ESSF" 
+# bec_subzone = "mc" 
+# earliest_nonlogging_dist_type = "IBM" 
+# earliest_nonlogging_dist_date = unique(vdf$EARLIEST_NONLOGGING_DIST_DATE)[2]
+# harvest_date = unique(vdf$HARVEST_DATE)[2]
+# crown_closure = 40 
+# proj_height_1 = 17 
+# proj_age_1 = 171 
+# vri_live_stems_per_ha = 392 
+# vri_dead_stems_per_ha = 40 
+# stand_percentage_dead =NULL 
+# inventory_standard_cd = "V" 
+# non_productive_cd = NA 
+# land_cover_class_cd_1 = "TC" 
+# species_cd_1 = "SE" 
+# species_pct_1 = 65 
+# species_cd_2 = "BL" 
+# species_pct_2 = 30 
+# species_cd_3 = "PLI" 
+# species_pct_3 = 5 
+# species_cd_4 = NA 
+# species_pct_4 = NA 
+# species_cd_5 = NA 
+# species_pct_5 = NA 
+# species_cd_6 = NA 
+# species_pct_6 = NA
+
+
 
 
 # Define tree species lists
@@ -1176,30 +1246,31 @@ get_fuel_type <- function(season, coast_interior_cd, bclcs_level_1, bclcs_level_
   return(list(line_no = 999, fuel_type = 'UNKNOWN', modifier = NULL))
 }
 
-# Example usage and testing
-cat("BC Wildfire Fuel Typing Algorithm - Complete R Implementation\n")
-cat("============================================================\n\n")
+# 
+# # Example usage and testing
+# cat("BC Wildfire Fuel Typing Algorithm - Complete R Implementation\n")
+# cat("============================================================\n\n")
+# 
+# # Test the function
+# test_result <- get_fuel_type(
+#   season = "dormant", coast_interior_cd = "I", bclcs_level_1 = "V", bclcs_level_2 = "N",
+#   bclcs_level_3 = "S", bclcs_level_4 = "H", bclcs_level_5 = "BY", 
+#   bec_zone_code = "ICH", bec_subzone = "mw", earliest_nonlogging_dist_type = NA,
+#   earliest_nonlogging_dist_date = NA, harvest_date = "2010-08-15",
+#   crown_closure = NA, proj_height_1 = NA, proj_age_1 = NA,
+#   vri_live_stems_per_ha = NA, vri_dead_stems_per_ha = NA, stand_percentage_dead = NA,
+#   inventory_standard_cd = "I", non_productive_cd = NA, land_cover_class_cd_1 = "SL",
+#   species_cd_1 = "PL", species_pct_1 = 80, species_cd_2 = "AT", species_pct_2 = 20,
+#   species_cd_3 = NA, species_pct_3 = NA, species_cd_4 = NA, species_pct_4 = NA,
+#   species_cd_5 = NA, species_pct_5 = NA, species_cd_6 = NA, species_pct_6 = NA
+# )
+# 
+# cat("Test Result:\n")
+# cat("Fuel Type:", test_result$fuel_type, "\n")
+# cat("Modifier:", ifelse(is.null(test_result$modifier), "None", test_result$modifier), "\n")
+# cat("Line:", test_result$line, "\n\n")
+# 
+# cat("This R implementation now includes the complete logged non-forested site logic\n")
+# cat("with all BEC zone specific rules for both species present and absent cases.\n")
 
-# Test the function
-test_result <- get_fuel_type(
-  season = "dormant", coast_interior_cd = "I", bclcs_level_1 = "V", bclcs_level_2 = "N",
-  bclcs_level_3 = "S", bclcs_level_4 = "H", bclcs_level_5 = "BY", 
-  bec_zone_code = "ICH", bec_subzone = "mw", earliest_nonlogging_dist_type = NA,
-  earliest_nonlogging_dist_date = NA, harvest_date = "2010-08-15",
-  crown_closure = NA, proj_height_1 = NA, proj_age_1 = NA,
-  vri_live_stems_per_ha = NA, vri_dead_stems_per_ha = NA, stand_percentage_dead = NA,
-  inventory_standard_cd = "I", non_productive_cd = NA, land_cover_class_cd_1 = "SL",
-  species_cd_1 = "PL", species_pct_1 = 80, species_cd_2 = "AT", species_pct_2 = 20,
-  species_cd_3 = NA, species_pct_3 = NA, species_cd_4 = NA, species_pct_4 = NA,
-  species_cd_5 = NA, species_pct_5 = NA, species_cd_6 = NA, species_pct_6 = NA
-)
-
-cat("Test Result:\n")
-cat("Fuel Type:", test_result$fuel_type, "\n")
-cat("Modifier:", ifelse(is.null(test_result$modifier), "None", test_result$modifier), "\n")
-cat("Line:", test_result$line, "\n\n")
-
-cat("This R implementation now includes the complete logged non-forested site logic\n")
-cat("with all BEC zone specific rules for both species present and absent cases.\n")
-                  
-                  
+     
