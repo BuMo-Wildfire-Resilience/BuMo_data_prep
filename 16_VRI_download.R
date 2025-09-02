@@ -60,6 +60,8 @@ template_bbox <- c(
 bbox_poly <- st_bbox(template_bbox, crs = template_crs) %>%
   st_as_sfc()
 
+st_write(bbox_poly, path(spatialOutDir, "template_bbox_poly.gpkg"))
+
 # Crop function
 crop_file <- function(file, bbox_poly) {
   # file <- files[1]
