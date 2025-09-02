@@ -34,7 +34,7 @@ spatialOutDir <- file.path(OutDir,'spatial')
 weather <- terra::rast(file.path(spatialDir,'weather_wrf','BuMo_ppt.nc'))
 
 w1 <- weather[[1]]
-writeRaster(w1, file.path(spatialDir,'weather_wrf','BuMo_ppt_1.tif'), overwrite=TRUE)
+writeRaster(w1, file.path(spatialDir,'weather_wrf','BuMo_ppt_11.tif'), overwrite=TRUE)
 
 tmin <- terra::rast(file.path(spatialDir,'weather_wrf','BuMo_tmin.nc'))
 w1 <- tmin[[1]]
