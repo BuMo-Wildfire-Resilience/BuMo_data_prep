@@ -111,7 +111,6 @@ percent_df <- stand_percentage_dead
 
 vdf_out <- read.csv(path(spatialDir, "Fuel_types_BC", "VRI_prepped", "test_fuel_type_output.csv"))
 
-
 # add the percent coifer and df information 
 
 vdf_out <- vdf_out |> 
@@ -127,11 +126,11 @@ vdf_out <- vdf_out |>
     fuel_type %in% c("C-3", "C-7") ~ "high",
     fuel_type %in% c("C-5", "C-6", "O-1b", "O-1a") ~ "moderate",
     fuel_type %in% c("D-1", "D-2") ~ "low",
-    fuel_type %in% c("M-1","M-2") &  conifer > 75  ~ "very_high",
+    fuel_type %in% c("M-1","M-2") &  conifer >= 75  ~ "very_high",
     fuel_type %in% c("M-3","M-4") &  STAND_PERCENTAGE_DEAD > 50  ~ "very_high",
-    fuel_type %in% c("M-1","M-2") &  conifer > 50 & conifer < 75  ~ "high",
+    fuel_type %in% c("M-1","M-2") &  conifer >= 50 & conifer < 75  ~ "high",
     fuel_type %in% c("M-3","M-4") &  STAND_PERCENTAGE_DEAD > 50  ~ "high",
-    fuel_type %in% c("M-1","M-2") &  conifer > 26 & conifer < 49   ~ "moderate",
+    fuel_type %in% c("M-1","M-2") &  conifer >= 26 & conifer < 50   ~ "moderate",
     fuel_type %in% c("M-1","M-2") &  conifer < 26  ~ "low",
     fuel_type %in% c("N", "W") ~ "non-fuel",
     .default = NA)
@@ -142,7 +141,7 @@ vdf_out <- vdf_out |>
 
 tt <- vdf_out |> 
   select(fuel_type, conifer, STAND_PERCENTAGE_DEAD , fuel_haz) |> 
-  group_by(fuel_haz,fuel_type,conifer) |> 
+  group_by(fuel_haz,fuel_type) |> 
   count()
 
 
