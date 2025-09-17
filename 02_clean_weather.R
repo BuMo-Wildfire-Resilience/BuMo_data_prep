@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and limitations under the License
 
+
 #Combine weather station data with weather staion's spatial location
 WStationsIn<-read_sf(file.path(spatialOutDir,"WStationsIn.gpkg"))
 WeatherData<-readRDS(file='tmp/WeatherData')
