@@ -70,24 +70,12 @@ write.csv(mods, file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs
 mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
 
 
-# create a raster with the closet point 
-
 # potential to extrapolate between stations? 
 
 
 # convert to a raster 
-
-
-
-# Read the point layer # all stations 
-
-st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg")) |> 
-  
-  
-  
-  # convert to a raster 
-  # read in stations
-  st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg"))
+# read in stations
+st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg"))
 
 # read in temp raster
 dem <- rast(fs::path(spatialOutDir, "DEM3005_BuMo.tif"))
@@ -96,20 +84,9 @@ dem[dem > 0] <- 1
 dem[dem <0 ] <- 0
 
 temp <- dem
-dem = NA
 # this can be our template raster 
 
-
 raster_points <- as.points(temp, values = FALSE)
-
-
-
-
-
-
-
-
-
 
 
 
