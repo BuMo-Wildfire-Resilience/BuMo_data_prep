@@ -2,7 +2,7 @@
 
 
 #source(fs::path("C:/r_repo/External_repos/cffdrs-ng/NG_FWI.r"))
-source("C:\\r_repo\\External_repos\\cffdrs-ng\\util.r")
+#source("C:\\r_repo\\External_repos\\cffdrs-ng\\util.r")
 #source("C:\\r_repo\\External_repos\\cffdrs-ng\\daily_summaries.R")
 #' Various utility functions used by the other files
 library(data.table)
