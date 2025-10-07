@@ -150,7 +150,6 @@ for (xx in 1:length(fire.list)) {
       
       unique.dates <- sort(unique(trunc(fire.hotspots$loc_JDT), decreasing=F))
       
-      
       # Get xy coordinates for each pixel in area where DOB is to be estimated
       
       xy <- as.data.frame(xyFromCell(fire.perim.raster, 1:ncell(fire.perim.raster)))
@@ -161,12 +160,10 @@ for (xx in 1:length(fire.list)) {
       xy <- na.omit(xy)
       xy <- xy[,c(1,2)]
       
-      
       # Get coordinates of fire detection points
       
       modis.coords <- as.data.frame(st_coordinates(fire.hotspots))
       colnames(modis.coords) <- c('x', 'y')
-      
       
       # For each pixel, get five closest fire detection points
       
@@ -174,7 +171,6 @@ for (xx in 1:length(fire.list)) {
       IDs <- as.data.frame(nn5$nn.index)
       dists <- as.data.frame(nn5$nn.dist)
       unique <- as.data.frame(seq(1, nrow(xy)))
-      
       
       # Makes data frame with columns of five nearest IDs, distances, and DOBs
       
@@ -196,8 +192,7 @@ for (xx in 1:length(fire.list)) {
       data$DOB4 <- DOB4
       data$DOB5 <- DOB5
       
-      head(data)
-      
+      #head(data)
       
       # Make column for the DOB estimates
       
