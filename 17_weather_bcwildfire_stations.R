@@ -18,11 +18,7 @@ library(bcdata)
 library(purrr)
 library(fs)
 library(readr)
-<<<<<<< HEAD
-
-=======
 library(lubridate)
->>>>>>> 3f3cd5e3d5e5fccf2ad8b6b8d3b7909926d0cac0
 
 DataDir <- 'data'
 spatialDir <- fs::path(DataDir,'spatial')
@@ -97,7 +93,7 @@ mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142
 #Generate the fire weather information and calculate daily max, min, mean, sd for relevant metrics, 
 # note included some wind variables also. 
 
-mods <- read_csv(file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
+#mods <- read_csv(file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
 
 mods <- mods |> 
   mutate(DATE = substr(DATE_TIME, 1, 8)) |>
@@ -105,12 +101,10 @@ mods <- mods |>
   mutate(jday = yday(ddate))
 
 ## summarise which stations have data 
-# 
 # st_summary <- mods |> 
 #   group_by(STATION_CODE) |> 
 #   summarise(min(DATE_TIME),
 #             max(DATE_TIME))
-
 # potential to extrapolate between stations? 
 
 # select FWI variables as these are generated daily at 12noon? 
@@ -125,7 +119,7 @@ st_fire_dailies <- mods |>
 #  filter(!is.na(FIRE_WEATHER_INDEX)) |> 
   arrange(DATE)
 
-<<<<<<< HEAD
+
 # convert to a raster 
 # read in stations
 st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg"))
@@ -141,10 +135,10 @@ temp <- dem
 
 raster_points <- as.points(temp, values = FALSE)
 
-=======
-fire_st <- unique(st_fire_dailies$STATION_CODE)
-fire_dates <- unique(st_fire_dailies$DATE)
->>>>>>> 3f3cd5e3d5e5fccf2ad8b6b8d3b7909926d0cac0
+# =======
+# fire_st <- unique(st_fire_dailies$STATION_CODE)
+# fire_dates <- unique(st_fire_dailies$DATE)
+# >>>>>>> 3f3cd5e3d5e5fccf2ad8b6b8d3b7909926d0cac0
 
 # generate daily averages for other temperature metrics
 st_dailies <- mods |> 
@@ -267,16 +261,17 @@ writeRaster(post2019, fs::path(spatialDir, "weather", "BuMo", "bumo_post2019_clo
 
 # 4) Generate the weather data rasters for each time point and for each metric by extracting
 # the closest station inforamtion. 
+pre2019 <- rast(fs::path(spatialDir, "weather", "BuMo", "bumo_pre2019_closest_station.tif"))
+post2019 <- rast(fs::path(spatialDir, "weather", "BuMo", "bumo_post2019_closest_station.tif"))
 
 all_stat_weather <- read_csv(file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_daily_20142023.csv")) |> 
-  select(-DATE_TIME) |> 
+  #dplyr::select(-DATE_TIME) |> 
   mutate(month = month(ddate)) |> 
   filter(month %in% c(4,5,6,7,8,9,10))
 
 
 
 ## use the pre and post ("closest neighbour to provide raster values )
-
 generate_weather_raster <- function(
     weather_data = all_stat_weather, 
     station_raster = pre2019, 
@@ -481,7 +476,7 @@ fwi_2014 <- generate_weather_raster(
                         station_id_column = "STATION_CODE",
                         date_column = "DATE",
                         start_date = 20140401,
-                        end_date =  20141031,
+                        end_date =  20140430,
                         date_step = "day",
                         chunk_size = 100,
                         save_individual = FALSE,
@@ -489,7 +484,10 @@ fwi_2014 <- generate_weather_raster(
                         weather_variables = "FIRE_WEATHER_INDEX")
 
 #fwi_2014 <- fwi_2014_2018
+# convert to raster
+fwi_2014 <- rast(fwi_2014)
 
-
+output_dir = fs::path(spatialOutDir, "weather_stations_raster")
+terra::writeRaster(fwi_2014, fs::path(output_dir, "fwi_201404.tif"))
 
 
