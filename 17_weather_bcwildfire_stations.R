@@ -18,11 +18,8 @@ library(bcdata)
 library(purrr)
 library(fs)
 library(readr)
-<<<<<<< HEAD
-
-=======
 library(lubridate)
->>>>>>> 3f3cd5e3d5e5fccf2ad8b6b8d3b7909926d0cac0
+
 
 DataDir <- 'data'
 spatialDir <- fs::path(DataDir,'spatial')
@@ -125,26 +122,26 @@ st_fire_dailies <- mods |>
 #  filter(!is.na(FIRE_WEATHER_INDEX)) |> 
   arrange(DATE)
 
-<<<<<<< HEAD
-# convert to a raster 
-# read in stations
-st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg"))
-
-# read in temp raster
-dem <- rast(fs::path(spatialOutDir, "DEM3005_BuMo.tif"))
-# convert any values >0 to 1
-dem[dem > 0] <- 1
-dem[dem <0 ] <- 0
-
-temp <- dem
-# this can be our template raster 
-
-raster_points <- as.points(temp, values = FALSE)
-
-=======
+# <<<<<<< HEAD
+# # convert to a raster 
+# # read in stations
+# st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg"))
+# 
+# # read in temp raster
+# dem <- rast(fs::path(spatialOutDir, "DEM3005_BuMo.tif"))
+# # convert any values >0 to 1
+# dem[dem > 0] <- 1
+# dem[dem <0 ] <- 0
+# 
+# temp <- dem
+# # this can be our template raster 
+# 
+# raster_points <- as.points(temp, values = FALSE)
+# 
+# =======
 fire_st <- unique(st_fire_dailies$STATION_CODE)
 fire_dates <- unique(st_fire_dailies$DATE)
->>>>>>> 3f3cd5e3d5e5fccf2ad8b6b8d3b7909926d0cac0
+#>>>>>>> 3f3cd5e3d5e5fccf2ad8b6b8d3b7909926d0cac0
 
 # generate daily averages for other temperature metrics
 st_dailies <- mods |> 
