@@ -55,14 +55,8 @@ st_write(st_bumo, path(spatialDir, "weather", "BuMo", "bumo_weather_stations.gpk
 
 
 
-
-
-
-
-
-
 # 2) Compile the weather data downloaded from the BCdata site 
-# These were donwloaded for annual years from 2014 - 2023 as annual zip files. 
+# These were downloaded for annual years from 2014 - 2023 as annual zip files. 
 
 # note hourly weather for fwi and fire metrics is available under a data sharing agreement, just starting with daily average to get 
 # code started for ground truthing the data avavilabel and compare with WRF. 
@@ -87,7 +81,7 @@ mods <- purrr::map(wfl, function(x) {
 
 write.csv(mods, file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"), row.names = FALSE)
 
-
+# daily weather measures
 mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
 
 #Generate the fire weather information and calculate daily max, min, mean, sd for relevant metrics, 
@@ -135,10 +129,8 @@ temp <- dem
 
 raster_points <- as.points(temp, values = FALSE)
 
-# =======
 # fire_st <- unique(st_fire_dailies$STATION_CODE)
 # fire_dates <- unique(st_fire_dailies$DATE)
-# >>>>>>> 3f3cd5e3d5e5fccf2ad8b6b8d3b7909926d0cac0
 
 # generate daily averages for other temperature metrics
 st_dailies <- mods |> 
@@ -184,8 +176,167 @@ write_csv(all_stat_weather , fs::path(spatialDir, "weather", "BuMo", "bumo_weath
 
 
 
+
+
+
+
 # 3) determine which raster cell is closest to which station. 
-# might want to revisit this. 
+# read in the station locations
+
+st <- st_read(path(spatialDir, "weather", "BuMo", "bumo_weather_stations.gpkg"))
+aoi_st <- unique(st$STATION_CODE)
+
+
+# read in template and convert to points and coordinates
+dem <- rast(file.path(spatialOutDir, "DEM3005_BuMo.tif"))
+dem[dem > 1] <- 1
+dem[dem <1 ]<- 1
+raster_template = dem 
+
+raster_template[raster_template ==1]<- 0
+
+
+library(terra)
+# daily weather measures at 12 noon timestamp 
+mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
+
+mods <- mods |> 
+  select(STATION_CODE, STATION_NAME, DATE_TIME, HOURLY_WIND_SPEED, HOURLY_WIND_DIRECTION) |> 
+  mutate(TIME = substr(DATE_TIME, nchar(DATE_TIME)-1 ,nchar(DATE_TIME))) |> 
+  filter(TIME == 12) |> 
+  mutate(month = substr(DATE_TIME, nchar(DATE_TIME)-5 ,nchar(DATE_TIME)-4)) |> 
+  filter(month %in% c(04,05,06,07,08,09, 10)) |> 
+  mutate(year = substr(DATE_TIME, 1 ,4)) |> 
+  select(-TIME, -month)
+
+
+mod_years <- unique(mods$year)
+
+st_test <- st |> 
+  select(STATION_CODE,STATION_NAME,INSTALL_DATE)
+
+
+# loop through each day to generate a windspeed raster based on interpolation
+# shortlist the dates for each April 1st to 31st Oct
+
+
+# loop through years
+mods_yr <- mods |> filter (year == mod_years[1]) 
+
+# running the 2014 as test run 
+
+
+
+
+
+alldates <- mods_yr$DATE_TIME
+#alldates <- alldates[1:2]
+
+# create a list of rasters to stack outputs 
+
+mods <- purrr::map(alldates, function(x) {
+  
+ # x <- alldates[1]
+  
+  mod_test <- mods_yr |>  filter(DATE_TIME == x)
+  
+  st_data <- left_join(st_test, mod_test, by = join_by(STATION_CODE, STATION_NAME) ) 
+  st_data <- st_data |> 
+    select(STATION_CODE, DATE_TIME, HOURLY_WIND_SPEED) |> 
+    filter(!is.na(HOURLY_WIND_SPEED))
+  
+  d <- data.frame(geom(vect(st_data))[,c("x", "y")], as.data.frame(st_data)) |> 
+    select(-geom) 
+   
+  gs <- gstat(formula = HOURLY_WIND_SPEED~1, locations = ~x+y, data = d, set=list(idp = 2))
+  idw <- interpolate(raster_template, gs, debug.level = 0)
+  idwr <-  mask(idw, raster_template)
+  names(idwr)<- c(x, "drop")
+  idwr_out <- idwr[[1]]
+  
+  idwr_out
+
+}) 
+
+
+
+
+
+
+
+
+
+
+
+mod_test <- mods |>  filter(DATE_TIME == 2014060112)
+
+st_test <- left_join(st_test, mod_test) 
+st_test1 <- st_test |> 
+  select(STATION_CODE, DATE_TIME, HOURLY_WIND_SPEED) |> 
+  filter(!is.na(HOURLY_WIND_SPEED))
+  
+d <- data.frame(geom(vect(st_test1))[,c("x", "y")], as.data.frame(st_test1)) |> 
+  select(-geom) 
+
+gs <- gstat(formula = HOURLY_WIND_SPEED~1, locations = ~x+y, data = d, nmax = 12, set=list(idp = 2))
+nn <- interpolate(raster_template, gs, debug.level = 0)
+nn<- mask(nn, raster_template)
+plot(nn, 1)
+
+plot(nn)
+
+library(gstat)
+
+gs <- gstat(formula = HOURLY_WIND_SPEED~1, locations = ~x+y, data = d)
+idw <- interpolate(raster_template, gs, debug.level = 0)
+idwr <-  mask(idw, raster_template)
+plot(idwr)
+
+gs <- gstat(formula = HOURLY_WIND_SPEED~1, locations = ~x+y, data = d, set=list(idp = 2))
+idw <- interpolate(raster_template, gs, debug.level = 0)
+idwr2 <-  mask(idw, raster_template)
+plot(idwr2)
+
+gs <- gstat(formula = HOURLY_WIND_SPEED~1, locations = ~x+y, data = d, set=list(idp = 1))
+idw <- interpolate(raster_template, gs, debug.level = 0)
+idwr3 <-  mask(idw, raster_template)
+plot(idwr3)
+
+
+
+
+
+
+
+
+
+
+
+# create a raster template 
+
+#Loop through each day and make a list of the weather attributes using lapply to call a function
+mkIDWFn <- function(DayNum,Watt,idpValue){
+  FWIdataDay <- FWIdata %>%
+    dplyr::filter(wDay==DayNum) %>%
+    dplyr::select(display_name, wDay, eval(Watt))
+  Wvect<-WStations %>%
+    left_join(FWIdataDay, by=c('STATION_NAME'='display_name')) %>%
+    st_drop_geometry() %>%
+    # fill in NA at stations that were not recording with mean of other weather attribute values
+    mutate_at(vars(wDay,{{Watt}}),~ifelse(is.na(.x), mean(.x, na.rm = TRUE), .x)) %>%
+    dplyr::select({{Watt}}) %>%
+    unlist()
+  FWI.idw <- gstat::idw(Wvect~1, Stations_XY, newdata=grd, idp=idpValue)
+  raster(FWI.idw)
+}
+
+
+
+
+
+
+
+
 
 
 # generate a raster based on the closest approximation to the weather station. 
