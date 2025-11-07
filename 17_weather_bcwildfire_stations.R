@@ -19,6 +19,7 @@ library(purrr)
 library(fs)
 library(readr)
 library(lubridate)
+library(gstat)
 
 DataDir <- 'data'
 spatialDir <- fs::path(DataDir,'spatial')
@@ -26,6 +27,8 @@ spatialDir <- fs::path(DataDir,'spatial')
 OutDir <- 'out'
 dataOutDir <- file.path(OutDir,'data')
 spatialOutDir <- file.path(OutDir,'spatial')
+out_dir <- fs::path(spatialOutDir, "weather_stations_raster")
+
 
 # 1) prepare weather stations in and around the AOI 
 
@@ -195,8 +198,6 @@ raster_template = dem
 
 raster_template[raster_template ==1]<- 0
 
-
-library(terra)
 # daily weather measures at 12 noon timestamp 
 mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
 
@@ -205,12 +206,9 @@ mods <- mods |>
   mutate(TIME = substr(DATE_TIME, nchar(DATE_TIME)-1 ,nchar(DATE_TIME))) |> 
   filter(TIME == 12) |> 
   mutate(month = substr(DATE_TIME, nchar(DATE_TIME)-5 ,nchar(DATE_TIME)-4)) |> 
-  filter(month %in% c(04,05,06,07,08,09, 10)) |> 
+  filter(month %in% c("04","05","06","07","08","09","10")) |> 
   mutate(year = substr(DATE_TIME, 1 ,4)) |> 
-  select(-TIME, -month)
-
-
-mod_years <- unique(mods$year)
+  select(-TIME)
 
 st_test <- st |> 
   select(STATION_CODE,STATION_NAME,INSTALL_DATE)
@@ -220,48 +218,75 @@ st_test <- st |>
 # shortlist the dates for each April 1st to 31st Oct
 
 
+# type of metric to be analysed
+
+coi = "HOURLY_WIND_SPEED"
+# 
+# # create loop for the metrics 
+# coi = "HOURLY_WIND_SPEED"
+# Wind direction 
+# ISI 
+# BUI
+# FWI
+
+# get unique yr and months 
+mod_years <- unique(mods$year)
+mod_months <- unique(mods$month)
+
+
 # loop through years
-mods_yr <- mods |> filter (year == mod_years[1]) 
+yoi <- mod_years[1]
 
-# running the 2014 as test run 
-
-
+mods_df <- mods |> filter (year == yoi) 
 
 
+# loop through months of year 
+#mod_months <- mod_months[1:2]
 
-alldates <- mods_yr$DATE_TIME
-#alldates <- alldates[1:2]
+all_months <- purrr::map(mod_months, function(m) {
+  # test line
+  #m <- mod_months[1]
+  mods_dfm <- mods_df |> filter(month == m)
 
-# create a list of rasters to stack outputs 
+  # get list of all dates in the select month and year
+  alldates <- unique(mods_dfm$DATE_TIME)
+  #alldates <- alldates[1:2]
 
-mods <- purrr::map(alldates, function(x) {
-  
- # x <- alldates[1]
-  
-  mod_test <- mods_yr |>  filter(DATE_TIME == x)
-  
-  st_data <- left_join(st_test, mod_test, by = join_by(STATION_CODE, STATION_NAME) ) 
-  st_data <- st_data |> 
-    select(STATION_CODE, DATE_TIME, HOURLY_WIND_SPEED) |> 
-    filter(!is.na(HOURLY_WIND_SPEED))
-  
-  d <- data.frame(geom(vect(st_data))[,c("x", "y")], as.data.frame(st_data)) |> 
-    select(-geom) 
-   
-  gs <- gstat(formula = HOURLY_WIND_SPEED~1, locations = ~x+y, data = d, set=list(idp = 2))
-  idw <- interpolate(raster_template, gs, debug.level = 0)
-  idwr <-  mask(idw, raster_template)
-  names(idwr)<- c(x, "drop")
-  idwr_out <- idwr[[1]]
-  
-  idwr_out
+  # create a list of rasters to stack outputs
+  all_out <- purrr::map(alldates, function(x) {
+    # x <- alldates[1]
+    print(x)
+    mod_test <- mods_dfm |> filter(DATE_TIME == x)
 
-}) 
+    st_data <- left_join(st_test, mod_test, by = join_by(STATION_CODE, STATION_NAME))
+    st_data <- st_data |>
+      select(STATION_CODE, DATE_TIME, HOURLY_WIND_SPEED) |>
+      filter(!is.na(HOURLY_WIND_SPEED))
+
+    d <- data.frame(geom(vect(st_data))[, c("x", "y")], as.data.frame(st_data)) |>
+      select(-geom)
+
+    gs <- gstat(formula = HOURLY_WIND_SPEED ~ 1, locations = ~ x + y, data = d, set = list(idp = 2))
+    idw <- interpolate(raster_template, gs, debug.level = 0)
+    idw <- mask(idw, raster_template)
+    names(idw) <- c(x, "drop")
+    idw <- idw[[1]]
+    idw <- as.data.frame(idw, xy = TRUE)
+    idw
+  })
+
+  # all_out
+  aa <- all_out |> reduce(left_join, by = c("x", "y"))
+  rm(all_out)
+  fname <- paste0(yoi, m, "_windsp.rds")
+  saveRDS(aa,  fs::path(out_dir, fname))
+  #write.csv(aa, fs::path(out_dir, fname))
+  print(m)
+  rm(aa)
+})
 
 
-
-
-
+#aa <- readRDS(fs::path(out_dir, "201404_windsp.rds"))
 
 
 
