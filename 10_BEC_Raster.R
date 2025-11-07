@@ -25,6 +25,12 @@ bec <- st_read(fs::path(spatialOutDir,'BEC_BuMo.gpkg')) |>
 tp <- rast(fs::path(spatialOutDir, "template_BuMo.tif"))
 dem <- rast(fs::path(spatialOutDir, "DEM3005_BuMo.tif"))
 
+#check the raster templates stack up. 
+#tt <- rast(fs::path(spatialOutDir, "BuMoW_50km.tif")
+#out <- tt + tp
+#crs(tt)<- crs(tp)
+           
+           
 # convert to raster
 
 beclabel_rast <- rasterize(bec, dem, field = "MAP_LABEL", background = NA)

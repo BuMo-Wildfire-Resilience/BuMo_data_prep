@@ -64,7 +64,7 @@ st_write(bbox_poly, path(spatialOutDir, "template_bbox_poly.gpkg"), append= FALS
 
 # Crop function
 crop_file <- function(file, bbox_poly) {
-  # file <- files[1]
+   file <- files[10]
   ext <- tools::file_ext(file)
   output <- file.path(spatialDir, "Fuel_types_BC", "VRI_prepped", paste0(tools::file_path_sans_ext(basename(file)), "_crop.", ext))
 

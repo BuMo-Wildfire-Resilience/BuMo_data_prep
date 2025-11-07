@@ -18,6 +18,7 @@ library(dplyr)
 library(ggplot2)
 
 
+
 # get a list of the number of fires 
 
 # fire perimeters - bc data catalogue
@@ -30,11 +31,18 @@ sort(unique(FIRE_YEAR <- hist$FIRE_YEAR))
 
 # how many fires are within the admin boundary? This is those which are within or touching the AOI boundary
 aoi_internal <- st_read(fs::path(spatialOutDir,'AOI_Admin.gpkg'))
+aoi_ext <-  st_read(file.path(spatialDir, "AOI_50k.gpkg"))
 
 fire_aoi <- hist %>%
-  filter(st_intersects(., aoi_internal, sparse = FALSE)) |> 
+  dplyr::filter(st_intersects(., aoi_internal, sparse = FALSE)) |> 
   dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_CAUSE,FIRE_SIZE_HECTARES,FIRE_DATE) 
 
+fire_aoi_ex <- hist |> 
+  dplyr::filter(st_intersects(hist, aoi_ext, sparse = FALSE)) |> 
+  dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_CAUSE,FIRE_SIZE_HECTARES,FIRE_DATE) 
+
+st_write(fire_aoi, fs::path(spatialOutDir,'fires_perims_20142024.gpkg'),append = FALSE)
+st_write(fire_aoi_ex, fs::path(spatialOutDir,'fires_buf_perims_20142024.gpkg'),append = FALSE)
 
 
 
@@ -55,7 +63,7 @@ sum <- fire_aoi |>
                                area_ha >=10000 ~ 'uber_large'))
 
 
-st_write(fire_aoi, fs::path(spatialOutDir,'fires_perims_20142024.gpkg'),overwrite = TRUE)
+#st_write(fire_aoi, fs::path(spatialOutDir,'fires_perims_20142024.gpkg'),overwrite = TRUE)
 
 
 #fires >= 100 ha = fire severity mapping province 
@@ -121,7 +129,7 @@ ggplot(sum, aes(x = FIRE_YEAR)) +
 
 # filter fires by target BEC zones 
 bec <- st_read(fs::path(spatialOutDir,'BEC_BuMo.gpkg')) |> 
-  dplyr::select(c(ZONE, geom, MAP_LABEL, NATURAL_DISTURBANCE))  |> 
+  dplyr::select(c(ZONE, geom, MAP_LABEL))  |> 
   dplyr::filter(ZONE %in% c("ESSF", "SBS","SBPS"))
 
 fires_bec <- fire_aoi |> 
