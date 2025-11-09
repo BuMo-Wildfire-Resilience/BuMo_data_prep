@@ -44,7 +44,7 @@ aoi <- st_read(file.path(spatialOutDir,"template_bbox_poly.gpkg"))
 st_bumo <- st |> st_intersection(aoi) 
 st_write(st_bumo, path(spatialDir, "weather", "BuMo", "bumo_weather_stations.gpkg"), delete_dsn = TRUE)
 
-
+st_bumo_codes = st_bumo$WEATHER_STATIONS_ID
 # now we have the list of potential weather stations we can download the daily weather from the datamart
 
 
@@ -55,6 +55,29 @@ st_write(st_bumo, path(spatialDir, "weather", "BuMo", "bumo_weather_stations.gpk
 
 # 2) Compile the weather data downloaded from the BCdata site 
 # These were downloaded for annual years from 2014 - 2023 as annual zip files. 
+
+# need to compile the 2024 dataset as only in single .csv that were downloaded manually 
+
+wfl <- list.files(fs::path(spatialDir, "weather", "BuMo", "daily_measures", "2024"), recursive = TRUE, pattern = "*.csv")
+#wfl <- wfl[1:2]
+
+mods <- purrr::map(wfl, function(x) {
+  #x <- wfl[1]
+  yr <- 2024
+  #yr <- gsub("_BCWS_WX_OBS.csv", "", yr)
+  
+  tfile <- read.csv(fs::path(spatialDir, "weather", "BuMo", "daily_measures", "2024", x))
+  tfilesub <- tfile |> filter(STATION_CODE %in% st_bumo_codes) |> 
+    filter(DATE_TIME >= as.numeric(paste0(yr, 040100))) |> 
+    filter(DATE_TIME <= as.numeric(paste0(yr, 103100))) 
+  
+  tfilesub
+  # mapview::mapview(tsf_sub)
+}) |> bind_rows()
+
+#write out the exisitng 
+
+write.csv(mods, file = fs::path(spatialDir, "weather", "BuMo", "daily_measures", "2024_BCWS_WX_OBS.csv"), row.names = FALSE)
 
 # note hourly weather for fwi and fire metrics is available under a data sharing agreement, just starting with daily average to get 
 # code started for ground truthing the data avavilabel and compare with WRF. 
@@ -77,10 +100,10 @@ mods <- purrr::map(wfl, function(x) {
   # mapview::mapview(tsf_sub)
 }) |> bind_rows()
 
-write.csv(mods, file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"), row.names = FALSE)
+write.csv(mods, file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142024.csv"), row.names = FALSE)
 
 # daily weather measures
-mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
+mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142024.csv"))
 
 #Generate the fire weather information and calculate daily max, min, mean, sd for relevant metrics, 
 # note included some wind variables also. 
@@ -170,7 +193,7 @@ st_dailies <- st_dailies|>
 all_stat_weather <- left_join(st_fire_dailies, st_dailies) |> 
   select(-DATE_TIME)
 
-write_csv(all_stat_weather , fs::path(spatialDir, "weather", "BuMo", "bumo_weather_daily_20142023.csv"))
+write_csv(all_stat_weather , fs::path(spatialDir, "weather", "BuMo", "bumo_weather_daily_20142024.csv"))
 
 
 
@@ -191,7 +214,7 @@ raster_template<- rast(file.path(spatialOutDir, "template_BuMo.tif"))
 raster_template[raster_template ==1]<- 0
 
 # daily weather measures at 12 noon timestamp 
-mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
+mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142024.csv"))
 
 mods <- mods |> 
   select(STATION_CODE, STATION_NAME, DATE_TIME, HOURLY_WIND_SPEED, HOURLY_WIND_DIRECTION) |> 
@@ -222,16 +245,16 @@ mod_years <- unique(mods$year)
 mod_months <- unique(mods$month)
 
 # loop through years # complete 2014[1]
-yoi <- mod_years[2]
+mod_years  <- mod_years[11]
 
 all_years <- purrr::map(mod_years, function(yy) {
   
-  #yoi <- mod_years[yy]
+    yy <- mod_years[1]
 
     mods_df <- mods |> filter (year == yy) 
-    
+    print(yy)
     # loop through months of year 
-    mod_months <- mod_months
+    #mod_months <- mod_months
     
     all_months <- purrr::map(mod_months, function(m) {
       # test line
@@ -276,8 +299,11 @@ all_years <- purrr::map(mod_years, function(yy) {
       print(m)
       rm(aa)
     }) # end of month loop 
-    
+    print(yy)
 }) # end of yr loop 
+
+
+
 
 
 #################################
@@ -293,7 +319,7 @@ raster_template<- rast(file.path(spatialOutDir, "template_BuMo.tif"))
 raster_template[raster_template ==1]<- 0
 
 # daily weather measures at 12 noon timestamp 
-mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
+mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142024.csv"))
 
 mods <- mods |> 
   select(STATION_CODE, STATION_NAME, DATE_TIME, HOURLY_WIND_SPEED, HOURLY_WIND_DIRECTION) |> 
@@ -358,10 +384,10 @@ all_years <- purrr::map(mod_years, function(yy) {
       idw
     })
     
-    # condense and save 
+    # condense and savfnamee 
     aa <- all_out |> reduce(left_join, by = c("x", "y"))
     rm(all_out)
-    fname <- paste0(yoi, m, "_winddir_df.rds")
+    fname <- paste0(yy, m, "_winddir_df.rds")
     saveRDS(aa,  fs::path(out_dir, fname))
     # #write.csv(aa, fs::path(out_dir, fname))
     print(m)
@@ -372,6 +398,26 @@ all_years <- purrr::map(mod_years, function(yy) {
   
 
 }) #End of year loop 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
