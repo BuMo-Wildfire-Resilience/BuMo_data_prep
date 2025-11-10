@@ -339,7 +339,7 @@ mod_years <- unique(mods$year)
 mod_months <- unique(mods$month)
 
 # loop through years # complete 2014[1]
-#yoi <- mod_years[2]
+yy <- mod_years[11]
 
 #
 all_years <- purrr::map(mod_years, function(yy) {
