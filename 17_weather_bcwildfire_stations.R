@@ -19,6 +19,7 @@ library(purrr)
 library(fs)
 library(readr)
 library(lubridate)
+library(gstat)
 
 
 DataDir <- 'data'
@@ -27,6 +28,8 @@ spatialDir <- fs::path(DataDir,'spatial')
 OutDir <- 'out'
 dataOutDir <- file.path(OutDir,'data')
 spatialOutDir <- file.path(OutDir,'spatial')
+out_dir <- fs::path(spatialOutDir, "weather_stations_raster")
+
 
 # 1) prepare weather stations in and around the AOI 
 
@@ -36,21 +39,13 @@ spatialOutDir <- file.path(OutDir,'spatial')
 st <- bcdc_get_data("WHSE_LAND_AND_NATURAL_RESOURCE.PROT_WEATHER_STATIONS_SP")
 st_write(st, path(spatialDir, "weather", "weather_stations.gpkg"), delete_dsn = TRUE)
 
-aoi <- st_read(file.path(spatialOutDir,"AOI.gpkg")) 
+aoi <- st_read(file.path(spatialOutDir,"template_bbox_poly.gpkg")) 
 
 # select all the weather stations close by (within 10 KM of the actual BUMO admin)
-st_bumo <- st |> st_intersection(aoi) |> 
-  select(-c( "AOI","PERIMETER", "FCODE" , "WTSHD_CODE" , "WTSHD_SYS"          
-             , "OBJECTID.1",  "AREA" ))
-
-st_addition <- st |> 
-  filter(STATION_NAME %in% c("BLACKPINE","MANSON", "BELL-IRVING"))
-
-st_bumo <- rbind(st_bumo, st_addition)
+st_bumo <- st |> st_intersection(aoi) 
 st_write(st_bumo, path(spatialDir, "weather", "BuMo", "bumo_weather_stations.gpkg"), delete_dsn = TRUE)
 
-#st_bumo_codes <- st_bumo$STATION_CODE
-
+st_bumo_codes = st_bumo$WEATHER_STATIONS_ID
 # now we have the list of potential weather stations we can download the daily weather from the datamart
 
 
@@ -59,11 +54,31 @@ st_write(st_bumo, path(spatialDir, "weather", "BuMo", "bumo_weather_stations.gpk
 
 
 
-
-
-
 # 2) Compile the weather data downloaded from the BCdata site 
-# These were donwloaded for annual years from 2014 - 2023 as annual zip files. 
+# These were downloaded for annual years from 2014 - 2023 as annual zip files. 
+
+# need to compile the 2024 dataset as only in single .csv that were downloaded manually 
+
+wfl <- list.files(fs::path(spatialDir, "weather", "BuMo", "daily_measures", "2024"), recursive = TRUE, pattern = "*.csv")
+#wfl <- wfl[1:2]
+
+mods <- purrr::map(wfl, function(x) {
+  #x <- wfl[1]
+  yr <- 2024
+  #yr <- gsub("_BCWS_WX_OBS.csv", "", yr)
+  
+  tfile <- read.csv(fs::path(spatialDir, "weather", "BuMo", "daily_measures", "2024", x))
+  tfilesub <- tfile |> filter(STATION_CODE %in% st_bumo_codes) |> 
+    filter(DATE_TIME >= as.numeric(paste0(yr, 040100))) |> 
+    filter(DATE_TIME <= as.numeric(paste0(yr, 103100))) 
+  
+  tfilesub
+  # mapview::mapview(tsf_sub)
+}) |> bind_rows()
+
+#write out the exisitng 
+
+write.csv(mods, file = fs::path(spatialDir, "weather", "BuMo", "daily_measures", "2024_BCWS_WX_OBS.csv"), row.names = FALSE)
 
 # note hourly weather for fwi and fire metrics is available under a data sharing agreement, just starting with daily average to get 
 # code started for ground truthing the data avavilabel and compare with WRF. 
@@ -86,15 +101,15 @@ mods <- purrr::map(wfl, function(x) {
   # mapview::mapview(tsf_sub)
 }) |> bind_rows()
 
-write.csv(mods, file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"), row.names = FALSE)
+write.csv(mods, file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142024.csv"), row.names = FALSE)
 
-
-mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
+# daily weather measures
+mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142024.csv"))
 
 #Generate the fire weather information and calculate daily max, min, mean, sd for relevant metrics, 
 # note included some wind variables also. 
 
-mods <- read_csv(file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
+#mods <- read_csv(file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142023.csv"))
 
 mods <- mods |> 
   mutate(DATE = substr(DATE_TIME, 1, 8)) |>
@@ -102,12 +117,10 @@ mods <- mods |>
   mutate(jday = yday(ddate))
 
 ## summarise which stations have data 
-# 
 # st_summary <- mods |> 
 #   group_by(STATION_CODE) |> 
 #   summarise(min(DATE_TIME),
 #             max(DATE_TIME))
-
 # potential to extrapolate between stations? 
 
 # select FWI variables as these are generated daily at 12noon? 
@@ -122,7 +135,6 @@ st_fire_dailies <- mods |>
 #  filter(!is.na(FIRE_WEATHER_INDEX)) |> 
   arrange(DATE)
 
-# <<<<<<< HEAD
 # # convert to a raster 
 # # read in stations
 # st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg"))
@@ -141,7 +153,22 @@ st_fire_dailies <- mods |>
 # =======
 fire_st <- unique(st_fire_dailies$STATION_CODE)
 fire_dates <- unique(st_fire_dailies$DATE)
-#>>>>>>> 3f3cd5e3d5e5fccf2ad8b6b8d3b7909926d0cac0
+
+# convert to a raster 
+# read in stations
+st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg"))
+
+# read in temp raster
+dem <- rast(fs::path(spatialOutDir, "DEM3005_BuMo.tif"))
+# convert any values >0 to 1
+dem[dem > 0] <- 1
+dem[dem <0 ] <- 0
+
+temp <- dem
+# this can be our template raster 
+
+raster_points <- as.points(temp, values = FALSE)
+
 
 # generate daily averages for other temperature metrics
 st_dailies <- mods |> 
@@ -183,284 +210,239 @@ st_dailies <- st_dailies|>
 all_stat_weather <- left_join(st_fire_dailies, st_dailies) |> 
   select(-DATE_TIME)
 
-write_csv(all_stat_weather , fs::path(spatialDir, "weather", "BuMo", "bumo_weather_daily_20142023.csv"))
+write_csv(all_stat_weather , fs::path(spatialDir, "weather", "BuMo", "bumo_weather_daily_20142024.csv"))
 
 
 
-# 3) determine which raster cell is closest to which station. 
-# might want to revisit this. 
 
 
-# generate a raster based on the closest approximation to the weather station. 
-# Note one station (Sawtooth) was installed in 2018-11-04. This will impact the closest proximity 
-# station and will be calculated before and after this date. 
-# 
+
+
+
+
+# 3) interpolate the wind speed based on closest station (idw)
+# read in the station locations
 
 st <- st_read(path(spatialDir, "weather", "BuMo", "bumo_weather_stations.gpkg"))
 aoi_st <- unique(st$STATION_CODE)
 
-st<- st |> filter(STATION_CODE %in%  unique(mods$STATION_CODE))
+# read in template and convert to points and coordinates
+raster_template<- rast(file.path(spatialOutDir, "template_BuMo.tif"))
+raster_template[raster_template ==1]<- 0
 
-st_pre2019 <- st |> filter(!STATION_NAME == "SAWTOOTH") # drop this as installed in nov 2018
-st_post2019 <- st
+# daily weather measures at 12 noon timestamp 
+mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142024.csv"))
+
+mods <- mods |> 
+  select(STATION_CODE, STATION_NAME, DATE_TIME, HOURLY_WIND_SPEED, HOURLY_WIND_DIRECTION) |> 
+  mutate(TIME = substr(DATE_TIME, nchar(DATE_TIME)-1 ,nchar(DATE_TIME))) |> 
+  filter(TIME == 12) |> 
+  mutate(month = substr(DATE_TIME, nchar(DATE_TIME)-5 ,nchar(DATE_TIME)-4)) |> 
+  filter(month %in% c("04","05","06","07","08","09","10")) |> 
+  mutate(year = substr(DATE_TIME, 1 ,4)) |> 
+  select(-TIME)
+
+st_test <- st |> 
+  select(STATION_CODE,STATION_NAME,INSTALL_DATE)
+
+# loop through each day to generate a windspeed raster based on interpolation
+# shortlist the dates for each April 1st to 31st Oct
+
+# type of metric to be analysed
+
+# # create loop for the metrics 
+# coi = "HOURLY_WIND_SPEED"
+# Wind direction 
+# ISI 
+# BUI
+# FWI
+
+# get unique yr and months 
+mod_years <- unique(mods$year)
+mod_months <- unique(mods$month)
+
+# loop through years # complete 2014[1]
+mod_years  <- mod_years[11]
+
+all_years <- purrr::map(mod_years, function(yy) {
+  
+    yy <- mod_years[1]
+
+    mods_df <- mods |> filter (year == yy) 
+    print(yy)
+    # loop through months of year 
+    #mod_months <- mod_months
+    
+    all_months <- purrr::map(mod_months, function(m) {
+      # test line
+      #m <- mod_months[1]
+      mods_dfm <- mods_df |> filter(month == m)
+    
+      # get list of all dates in the select month and year
+      alldates <- unique(mods_dfm$DATE_TIME)
+      #alldates <- alldates[1:2]
+    
+      # create a list of rasters to stack outputs
+      all_out <- purrr::map(alldates, function(x) {
+         #x <- alldates[1]
+        print(x)
+        mod_test <- mods_dfm |> filter(DATE_TIME == x)
+    
+        st_data <- left_join(st_test, mod_test, by = join_by(STATION_CODE, STATION_NAME))
+        st_data <- st_data |>
+          select(STATION_CODE, DATE_TIME, HOURLY_WIND_SPEED) |>
+          filter(!is.na(HOURLY_WIND_SPEED))
+    
+        d <- data.frame(geom(vect(st_data))[, c("x", "y")], as.data.frame(st_data)) |>
+          select(-geom)
+    
+        gs <- gstat(formula = HOURLY_WIND_SPEED ~ 1, locations = ~ x + y, data = d, set = list(idp = 2))
+        idw <- interpolate(raster_template, gs, debug.level = 0)
+        idw <- mask(idw, raster_template)
+        names(idw) <- c(x, "drop")
+        idw <- idw[[1]]
+        fname <- paste0(x ,"_windsp.tif")
+        writeRaster(idw, fs::path(spatialOutDir, "weather_stations_raster", fname), overwrite=TRUE)
+        idw <- as.data.frame(idw, xy = TRUE)
+        idw
+        })
+    
+      # condense and save 
+      aa <- all_out |> reduce(left_join, by = c("x", "y"))
+      rm(all_out)
+      fname <- paste0(yoi, m, "_windsp_df.rds")
+      saveRDS(aa,  fs::path(out_dir, fname))
+      # #write.csv(aa, fs::path(out_dir, fname))
+      print(m)
+      rm(aa)
+    }) # end of month loop 
+    print(yy)
+}) # end of yr loop 
+
+
+
+
+
+#################################
+## Wind direction 
+###############################
+# read in the station locations
+
+st <- st_read(path(spatialDir, "weather", "BuMo", "bumo_weather_stations.gpkg"))
+aoi_st <- unique(st$STATION_CODE)
 
 # read in template and convert to points and coordinates
-dem <- rast(file.path(spatialOutDir, "DEM3005_BuMo.tif"))
-dem[dem > 1] <- 1
-dem[dem <1 ]<- 1
-raster_template = dem 
+raster_template<- rast(file.path(spatialOutDir, "template_BuMo.tif"))
+raster_template[raster_template ==1]<- 0
 
-create_closest_point_raster <- function(
-    points_file, 
-    template_raster = raster_template, 
-    id_column = "STATION_CODE"){
+# daily weather measures at 12 noon timestamp 
+mods <- read_csv(fs::path(spatialDir, "weather", "BuMo", "bumo_weather_obs_20142024.csv"))
 
-  #st_pre2019
-  #st_post2019
-  #template_raster = raster_template
-  #id_column = "STATION_CODE"
+mods <- mods |> 
+  select(STATION_CODE, STATION_NAME, DATE_TIME, HOURLY_WIND_SPEED, HOURLY_WIND_DIRECTION) |> 
+  mutate(TIME = substr(DATE_TIME, nchar(DATE_TIME)-1 ,nchar(DATE_TIME))) |> 
+  filter(TIME == 12) |> 
+  mutate(month = substr(DATE_TIME, nchar(DATE_TIME)-5 ,nchar(DATE_TIME)-4)) |> 
+  filter(month %in% c("04","05","06","07","08","09","10")) |> 
+  mutate(year = substr(DATE_TIME, 1 ,4)) |> 
+  select(-TIME)
+
+st_test <- st |> 
+  select(STATION_CODE,STATION_NAME,INSTALL_DATE)
+
+
+# get unique yr and months 
+mod_years <- unique(mods$year)
+mod_months <- unique(mods$month)
+
+# loop through years # complete 2014[1]
+#yoi <- mod_years[2]
+
+#
+all_years <- purrr::map(mod_years, function(yy) {
   
-  # convert to vector  
-  points_vect <- vect(points_file)
+  #yy <- mod_years[1] # test line
+  mods_df <- mods |> filter (year == yy) 
   
-  first_dist <- terra::distance(raster_template, points_vect[1])
-  closest_id_raster <- raster_template
-  values(closest_id_raster) <- points_file[[id_column]][1]
-  min_dist_raster <- first_dist
-
-  if(nrow(points_file) > 1){
-    for(i in 2:nrow(points_file)){
-    # i = 3
-      current_dist <- distance(raster_template, points_vect[i])
+  # loop through months of year 
+  #mod_months <- mod_months
+  
+  all_months <- purrr::map(mod_months, function(m) {
+    # test line
+    #m <- mod_months[1]
+    mods_dfm <- mods_df |> filter(month == m)
     
-      closer_mask <- current_dist < min_dist_raster
-      values(closest_id_raster)[values(closer_mask) ==1] <- points_file[[id_column]][i]
-      values(min_dist_raster)[values(closer_mask)== 1]<- values(current_dist)[values(closer_mask)==1]
+    # get list of all dates in the select month and year
+    alldates <- unique(mods_dfm$DATE_TIME)
+    #alldates <- alldates[1:2]
     
-      if (i %% 10 == 0){
-        message(paste("processing point", i , "of", nrow(points_file)))
-        }
-      }
-  }
-  
-  return(closest_id_raster)
-} 
-
-# AS one of the towers was constructed in 2018 - November we have two different base rasters. 
-## NOTE THERE IS STILL AN ERROR IN THIS IN THE LOWER SW corner
-
-# generate the pre2019 and post2019 closest rasters 
-pre2019 <- create_closest_point_raster(points_file = st_pre2019)
-post2019 <- create_closest_point_raster(st_post2019)
-
-writeRaster(pre2019, fs::path(spatialDir, "weather", "BuMo", "bumo_pre2019_closest_station.tif"), overwrite = TRUE)
-writeRaster(post2019, fs::path(spatialDir, "weather", "BuMo", "bumo_post2019_closest_station.tif"), overwrite = TRUE)
-
-
-
-
-
-
-
-# 4) Generate the weather data rasters for each time point and for each metric by extracting
-# the closest station inforamtion. 
-
-all_stat_weather <- read_csv(file = fs::path(spatialDir, "weather", "BuMo", "bumo_weather_daily_20142023.csv")) |> 
-  select(-DATE_TIME) |> 
-  mutate(month = month(ddate)) |> 
-  filter(month %in% c(4,5,6,7,8,9,10))
-
-
-
-## use the pre and post ("closest neighbour to provide raster values )
-
-generate_weather_raster <- function(
-    weather_data = all_stat_weather, 
-    station_raster = pre2019, 
-    output_dir = fs::path(spatialOutDir, "weather_stations_raster"),
-    date_format = "%Y%m%d",
-    station_id_column = "STATION_CODE",
-    date_column = "DATE", 
-    weather_variables = "FIRE_WEATHER_INDEX",
-    start_date = NULL,
-    end_date = NULL,
-    date_step = "day", 
-    chunk_size = 100,
-    save_individual = FALSE, 
-    return_stack = TRUE){
-  
-  # # # testing files 
-  # weather_data = all_stat_weather
-  # station_raster = pre2019
-  # output_dir = fs::path(spatialOutDir, "fwi_weather_stations_raster")
-  # date_format = "%Y%m%d"
-  # station_id_column = "STATION_CODE"
-  # weather_variables = "FIRE_WEATHER_INDEX"
-  # date_column = "DATE"
-  # start_date = 20140401
-  # end_date =  20140402
-  # date_step = "day"
-  # chunk_size = 100
-  # save_individual = FALSE
-  # return_stack = TRUE
-
-  if(!dir.exists(output_dir)){
-    dir.create(output_dir, recursive = TRUE)
-    message(paste("Created output directory:", output_dir))
-  }
- 
-  # Get unique station IDs from raster
-  unique_station_ids <- unique(values(station_raster))
-  unique_station_ids <- as.numeric(unique_station_ids[!is.na(unique_station_ids)])
-  message(paste("Found", length(unique_station_ids), "unique station IDs in raster"))
-  
-  # Check which stations have data
-  available_stations <- as.numeric(unique(weather_data[[station_id_column]]))
-  missing_stations <- setdiff(unique_station_ids, available_stations)
-  if (length(missing_stations) > 0) {
-    warning(paste("Weather data missing for", length(missing_stations),
-                  "stations found in raster:", paste(head(missing_stations, 5), collapse = ", ")))
-  }
-  
- 
-  # Filter date range if specified
-  if (!is.null(start_date)) {
-    weather_data <- weather_data[weather_data[[date_column]] >= as_date(start_date), ]
-  }
-  if (!is.null(end_date)) {
-    weather_data <- weather_data[weather_data[[date_column]] <= as_date(end_date), ]
-  }
-  
-  # Get unique dates
-  unique_dates <- sort(unique(weather_data[[date_column]]))
-  message(paste("Processing", length(unique_dates), "dates from",
-                min(unique_dates), "to", max(unique_dates)))
-  
-  # Initialize list to store results
-  weather_rasters <- list()
-  
-  # Process dates in chunks to manage memory
-  n_dates <- length(unique_dates)
-  n_chunks <- ceiling(n_dates / chunk_size)
-  
-  for (chunk in 1:n_chunks) {
-    #chunk = 1
-    start_idx <- (chunk - 1) * chunk_size + 1
-    end_idx <- min(chunk * chunk_size, n_dates)
-    chunk_dates <- unique_dates[start_idx:end_idx]
-    
-    message(paste("Processing chunk", chunk, "of", n_chunks,
-                  "- dates", start_idx, "to", end_idx))
-    
-    # Process each date in the chunk
-    for (i in seq_along(chunk_dates)) {
-      #i <- 1
-      current_date <- chunk_dates[i]
+    # create a list of rasters to stack outputs
+    all_out <- purrr::map(alldates, function(x) {
+      #x <- alldates[1]
+      print(x)
+      mod_test <- mods_dfm |> filter(DATE_TIME == x)
       
-      # Filter weather data for current date
-      daily_data <- weather_data[weather_data[[date_column]] == current_date, ]
+      st_data <- left_join(st_test, mod_test, by = join_by(STATION_CODE, STATION_NAME))
+      st_data <- st_data |>
+        select(STATION_CODE, DATE_TIME, HOURLY_WIND_DIRECTION) |>
+        filter(!is.na(HOURLY_WIND_DIRECTION))
       
-      if (nrow(daily_data) == 0) {
-        warning(paste("No weather data found for date:", current_date))
-        next
-      }
+      d <- data.frame(geom(vect(st_data))[, c("x", "y")], as.data.frame(st_data)) |>
+        select(-geom)
       
-      # Create rasters for each weather variable
-      date_rasters <- list()
-      
-      for (var in weather_variables) {
-        # Create lookup table for current variable and date
-        #var = weather_variables
-        lookup_table <- daily_data %>%
-          select(all_of(c(station_id_column, var))) %>%
-          setNames(c("station_id", "value"))
-        
-        # Remove rows with missing values
-        #lookup_table <- lookup_table[!is.na(lookup_table$value), ]
-        
-        if (nrow(lookup_table) == 0) {
-          warning(paste("No valid data for variable", var, "on date", current_date))
-          next
-        }
-        
-        # Create raster for this variable
-        var_raster <- station_raster
-        
-        # Get raster values (station IDs)
-        station_ids <- values(station_raster)
-        
-        # Create new values array
-        new_values <- rep(NA, length(station_ids))
-        
-        # Map station IDs to weather values
-        for (j in 1:nrow(lookup_table)) {
-          station_id <- lookup_table$station_id[j]
-          weather_value <- lookup_table$value[j]
-          
-          # Find cells with this station ID and assign weather value
-          matching_cells <- which(station_ids == station_id)
-          new_values[matching_cells] <- weather_value
-        }
-        
-        # Assign new values to raster
-        values(var_raster) <- new_values
-        
-        # Name the raster
-        date_str <- current_date #format(current_date, "%Y%m%d")
-        names(var_raster) <- paste0(var, "_", date_str)
-        
-        date_rasters[[var]] <- var_raster
-        
-      #   # Save individual raster if requested
-      #   if (save_individual) {
-      #     output_file <- file.path(output_dir, paste0(var, "_", date_str, ".tif"))
-      #     writeRaster(var_raster, output_file, overwrite = TRUE)
-      #   }
-       }
-       
-      # Store in main list if returning stack
-      if (return_stack && length(date_rasters) > 0) {
-        weather_rasters[[as.character(current_date)]] <- date_rasters
-      }
-      
-      # Progress update
-      if (i %% 10 == 0 || i == length(chunk_dates)) {
-        message(paste("Completed", i, "of", length(chunk_dates), "dates in chunk"))
-      }
-    }
+      gs <- gstat(formula = HOURLY_WIND_DIRECTION ~ 1, locations = ~ x + y, data = d, set = list(idp = 2))
+      idw <- interpolate(raster_template, gs, debug.level = 0)
+      idw <- mask(idw, raster_template)
+      names(idw) <- c(x, "drop")
+      idw <- idw[[1]]
+      fname <- paste0(x ,"_winddir.tif")
+      writeRaster(idw, fs::path(spatialOutDir, "weather_stations_raster", fname), overwrite=TRUE)
+      idw <- as.data.frame(idw, xy = TRUE)
+      idw
+    })
     
-    # Clean up memory after each chunk
-    gc()
-  }
+    # condense and savfnamee 
+    aa <- all_out |> reduce(left_join, by = c("x", "y"))
+    rm(all_out)
+    fname <- paste0(yy, m, "_winddir_df.rds")
+    saveRDS(aa,  fs::path(out_dir, fname))
+    # #write.csv(aa, fs::path(out_dir, fname))
+    print(m)
+    rm(aa)
+    
+  }) # end of month loop 
   
-  message("Processing complete!")
   
-  # Return results if requested
-  if (return_stack && length(weather_rasters) > 0) {
-    message("Creating raster stacks by variable...")
-    
-    # Organize by variable
-    variable_stacks <- list()
-    
-    for (var in weather_variables) {
-      var_rasters <- list()
-      for (date_key in names(weather_rasters)) {
-        if (var %in% names(weather_rasters[[date_key]])) {
-          var_rasters[[date_key]] <- weather_rasters[[date_key]][[var]]
-        }
-      }
-      
-      if (length(var_rasters) > 0) {
-        variable_stacks[[var]] <- rast(var_rasters)
-        message(paste("Created stack for", var, "with", nlyr(variable_stacks[[var]]), "layers"))
-      }
-    }
-    
-    return(variable_stacks)
-  }
-  
-  return(invisible(NULL))
-}
+
+}) #End of year loop 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   
 # generate weather rasters 
@@ -478,7 +460,7 @@ fwi_2014 <- generate_weather_raster(
                         station_id_column = "STATION_CODE",
                         date_column = "DATE",
                         start_date = 20140401,
-                        end_date =  20141031,
+                        end_date =  20140430,
                         date_step = "day",
                         chunk_size = 100,
                         save_individual = FALSE,
@@ -486,7 +468,10 @@ fwi_2014 <- generate_weather_raster(
                         weather_variables = "FIRE_WEATHER_INDEX")
 
 #fwi_2014 <- fwi_2014_2018
+# convert to raster
+fwi_2014 <- rast(fwi_2014)
 
-
+output_dir = fs::path(spatialOutDir, "weather_stations_raster")
+terra::writeRaster(fwi_2014, fs::path(output_dir, "fwi_201404.tif"))
 
 

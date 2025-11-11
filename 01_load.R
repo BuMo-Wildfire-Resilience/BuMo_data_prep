@@ -38,7 +38,8 @@ gdbFn <- function(gbd_in, layernm, outN) {
   return(df_in)
 }
 
-AOI <- st_read(file.path(spatialOutDir, "AOI.gpkg"))
+#AOI <- st_read(file.path(spatialOutDir, "AOI.gpkg"))
+AOI <- st_read(file.path(spatialDir, "AOI_50k.gpkg"))
 bc <- bcmaps::bc_bound()
 Prov_crs <- crs(bcmaps::bc_bound())
 Prov_crs_Stars <- st_crs(bc)
@@ -326,7 +327,7 @@ library(sf)
 
 ##  generate some basic raster layers
 # crop terra raster to make a template
-AOI <- st_read(file.path(spatialOutDir, "AOI.gpkg"))
+AOI <- st_read(file.path(spatialDir, "AOI_50k.gpkg"))
 bcrast <- rast(file.path(spatialOutDir, "BCr.tif"))
 bcrast <- crop(bcrast, AOI)
 writeRaster(bcrast, fs::path(spatialOutDir, "template_BuMo.tif"), overwrite = TRUE)
@@ -336,12 +337,17 @@ writeRaster(bcrast, fs::path(spatialOutDir, "template_BuMo.tif"), overwrite = TR
 DEM <- rast(file.path(spatialOutDir, "DEM_BuMo.tif"))
 # reproject to template raster
 DEM <- project(DEM, bcrast)
-DEM <- writeRaster(DEM, fs::path(spatialOutDir, "DEM3005_BuMo.tif"))
+DEM <- crop(DEM, AOI)
+DEM <- writeRaster(DEM, fs::path(spatialOutDir, "DEM3005_BuMo.tif"), overwrite = TRUE)
 
 # convert to slope
 slope <- terra::terrain(DEM, v = "slope", neighbors = 8, unit = "degrees")
 writeRaster(slope, fs::path(spatialOutDir, "slope_BuMo.tif"), overwrite = TRUE)
 
+
+# aspect 
+aspect <- terra::terrain(DEM, v = "aspect", unit = "degrees")
+writeRaster(aspect, fs::path(spatialOutDir, "aspect_BuMo.tif"), overwrite = TRUE)
 
 # NOTE THIS HAS NOT BEEN UPDATED AS YET
 # # extract points from Canadaian Fire Spread Dataset (note only goes up to 2021)

@@ -60,11 +60,11 @@ template_bbox <- c(
 bbox_poly <- st_bbox(template_bbox, crs = template_crs) %>%
   st_as_sfc()
 
-st_write(bbox_poly, path(spatialOutDir, "template_bbox_poly.gpkg"))
+st_write(bbox_poly, path(spatialOutDir, "template_bbox_poly.gpkg"), append= FALSE)
 
 # Crop function
 crop_file <- function(file, bbox_poly) {
-  # file <- files[1]
+   file <- files[10]
   ext <- tools::file_ext(file)
   output <- file.path(spatialDir, "Fuel_types_BC", "VRI_prepped", paste0(tools::file_path_sans_ext(basename(file)), "_crop.", ext))
 
@@ -72,7 +72,7 @@ crop_file <- function(file, bbox_poly) {
     data <- st_read(file, quiet = TRUE)
     data <- data |> select(any_of(fld_list))
     cropped <- st_crop(data, bbox_poly)
-    st_write(cropped, output, quiet = TRUE)
+    st_write(cropped, output, quiet = TRUE, append = FALSE)
   }
 
   return(output)
