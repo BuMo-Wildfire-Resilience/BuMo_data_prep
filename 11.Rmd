@@ -1,0 +1,351 @@
+---
+title: "11_basic_summary_report"
+author: "Gen Perkins"
+date: "2025-11-06"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Basic summary of fire data  for BuMo project
+
+1)	Fire between 2014 – 2024 (inclusive)
+
+Using the historic fire perimeters, we can plot the number of fires within the study area (aoi) + plus the buffered study area (using a expanded perimeter of 50km). 
+
+
+```{r set inputs, echo = FALSE, warning= FALSE, message=FALSE}
+
+# setup folders for Gen's machine. 
+
+DataDir <- 'data'
+spatialDir <- fs::path(DataDir,'spatial')
+
+OutDir <- 'out'
+dataOutDir <- file.path(OutDir,'data')
+spatialOutDir <- file.path(OutDir,'spatial')
+
+library(sf)
+library(terra)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+# get a list of the number of fires 
+
+# fire perimeters - bc data catalogue
+hist <- st_read(fs::path(spatialOutDir,'HistoricFire.gpkg'), quiet = T) |> 
+  dplyr::filter(FIRE_YEAR >2013)
+
+# how many fires are within the admin boundary? This is those which are within or touching the AOI boundary
+aoi_internal <- st_read(fs::path(spatialOutDir,'AOI_Admin.gpkg'), quiet = T)
+aoi_external <- st_read(fs::path(spatialDir,'AOI_50k.gpkg'), quiet = T)
+
+
+# Aoi internal 
+fire_aoi <- hist %>%
+  filter(st_intersects(., aoi_internal, sparse = FALSE)) |> 
+  dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_CAUSE,FIRE_SIZE_HECTARES,FIRE_DATE) 
+
+# Aoi ext #50km 
+fire_aoi_ext <- hist %>%
+  filter(st_intersects(., aoi_external, sparse = FALSE)) |> 
+  dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_CAUSE,FIRE_SIZE_HECTARES,FIRE_DATE) 
+
+
+fire_all <- fire_aoi_ext |> 
+  mutate(aoi = ifelse(FIRE_NUMBER %in% fire_aoi$FIRE_NUMBER, "interior", "exterior"))
+
+
+```
+
+This figure shows the distribution of fires within the study area, the light blue fires intersect with the primary aoi, while the grey fires area any which occur only in the buffered area. 
+
+```{r generate map, echo = FALSE}
+map1 <- ggplot() +
+  geom_sf(data = fire_aoi_ext$geom, fill = "lightgrey") +
+  geom_sf(data = fire_aoi$geom, fill = "lightblue") +
+  geom_sf(data = aoi_internal$geom, fill = NA)+
+  geom_sf(data = aoi_external$geom, fill = NA)+
+  #geom_sf(data = fire_aoi_ext$geom, fill = "lightgrey") +
+  #geom_sf(data = ecoi, fill = "lightblue") +
+  #labs(title = paste0("Ecoprovince : ", stringr::str_to_title(unique(ecoi$ECOPROVINCE_NAME))))+
+  theme_minimal()
+
+```
+
+```{r plot map, echo = FALSE, fig.width=6, fig.height=6}
+map1
+
+```
+
+Total number of fires within the internal aoi is `r length(fire_aoi$geom)`, which the total number of fires within the buffered area (50km) is `r length(fire_aoi_ext$geom)`.
+
+## Fire size class
+
+We can review these based on size class: 
+
+  - area_ha < 100 ~  'small',
+  - area_ha >= 100 & area_ha < 500 ~ 'medium',
+  - area_ha >= 500 & area_ha < 1000 ~ 'large',
+  - area_ha >= 1000 & area_ha < 10000 ~ 'very_large',
+  - area_ha >=10000 ~ 'uber_large')
+
+These are grouped into interior fires (those which intersect or contained within the smaller AOI) and exterior (those which occur only within the wider 50km buffer).
+
+```{r, eval = TRUE, echo = FALSE}
+# summary of fires (internal)
+sum <- fire_all |>  
+  dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_CAUSE, aoi)|> 
+  dplyr::mutate(area = st_area(geom)) |> 
+  st_drop_geometry() |> 
+  dplyr::mutate(area_ha = as.numeric(area)/10000) |> 
+  mutate(small_fires = ifelse(area_ha < 100, TRUE, FALSE),
+         med_fires = ifelse(area_ha >= 100 & area_ha < 500, TRUE, FALSE),
+         large_fires = ifelse(area_ha >= 500, TRUE, FALSE)) |> 
+  mutate(fire_size = case_when(area_ha < 100 ~  'small',
+                               area_ha >= 100 & area_ha < 500 ~ 'medium',
+                               area_ha >= 500 & area_ha < 1000 ~ 'large',
+                               area_ha >= 1000 & area_ha < 10000 ~ 'very_large',
+                               area_ha >=10000 ~ 'uber_large'))
+
+```
+
+
+```{r, echo = FALSE, fig.width=10, fig.height=8}
+# total no of fire (all BEC zones)
+# plot no of fires per year and area
+
+p1 <- ggplot(sum, aes(x = factor(fire_size, levels = c("small", "medium", "large", "very_large", "uber_large")), fill = aoi)) +
+  geom_bar(position = "dodge") +
+  facet_wrap(~FIRE_YEAR) + 
+  xlab('Fire size') 
+
+
+p1
+```
+
+
+```{r, eval = TRUE, echo = FALSE}
+
+library(tidyr)
+# geom_htidyr# geom_histogram()# summary of fires per year
+fires_peryr <- sum |> 
+  dplyr::group_by(FIRE_YEAR, fire_size, aoi) |> 
+  dplyr::summarise(n_fires = n()) |> 
+  dplyr::arrange(desc(n_fires)) |> 
+  pivot_wider(names_from = fire_size, values_from = n_fires, id_cols = c(FIRE_YEAR, aoi))  |> 
+  arrange(FIRE_YEAR)|> 
+  select(FIRE_YEAR, small, medium, large, very_large, uber_large, aoi) 
+
+
+fires_tot <-  sum |> 
+  dplyr::group_by(FIRE_YEAR, fire_size, aoi) |> 
+  dplyr::summarise(total_area_ha = sum(area_ha)) |> 
+  #dplyr::arrange(desc(n_fires)) |> 
+  pivot_wider(names_from = fire_size, values_from = total_area_ha, id_cols =c(FIRE_YEAR, aoi)) |> 
+  arrange(FIRE_YEAR) |> 
+  select(FIRE_YEAR, small, medium, large, very_large, uber_large, aoi) 
+
+write.csv(fires_peryr, fs::path(dataOutDir,'fires_count_yr_20142024.csv'), row.names = FALSE)
+write.csv(fires_tot, fs::path(dataOutDir,'fires_ha_yr_20142024.csv'), row.names = FALSE)
+
+```
+
+
+## BEC types
+
+
+We can review the distribution of bec zones across the study area and also across fires by intersecting with BEC zone and map label with both the AOIs (internal and external) and fire perimieters. 
+
+### Distribution of BEC within study area
+
+This table shows the area (ha) and the percent or area per BEC zone as found in the exterior (_ext) and interior (_int) area of interest (aoi)
+
+```{r, echo = FALSE, eval = TRUE, warning = FALSE, message=FALSE}
+#######################################
+### Look at BEC ####################
+
+# look at all BEC fires 
+bec <- st_read(fs::path(spatialOutDir,'BEC_BuMo.gpkg'), quiet = TRUE) |> 
+  dplyr::select(c(ZONE, geom, MAP_LABEL))  #|> 
+ # dplyr::filter(ZONE %in% c("ESSF", "SBS","SBPS"))
+
+bec_int <- bec |> 
+  st_intersection(aoi_internal)
+
+
+## what is the distribution of area per BEC zones 
+## 1) external 
+
+bec <- bec |> mutate(area = st_area(geom))
+bec <- bec |> mutate(area_ha = round(as.numeric(area)/10000, 1))
+
+# what is the total Bec across the AOI area 
+bec_ex <- bec |> 
+  st_drop_geometry() |> 
+  group_by(ZONE) |> 
+  summarise(total_ha_ext = sum(area_ha)) |> 
+  ungroup() |> 
+  mutate(per_ext =  100 *total_ha_ext/sum(total_ha_ext)) 
+
+## 2) internal 
+
+bec_in <- bec_int |> mutate(area = st_area(geom))
+bec_in <- bec_in |> mutate(area_ha = round(as.numeric(area)/10000, 1))
+
+bec_in <- bec_in |> 
+  st_drop_geometry() |> 
+  group_by(ZONE) |> 
+  summarise(total_ha_int = sum(area_ha)) |> 
+  ungroup() |> 
+  mutate(per_int =  100 *total_ha_int/sum(total_ha_int)) 
+
+
+# assemble table 
+all <- left_join(bec_ex, bec_in) |> 
+  mutate(mutate(across(2:5, round, 1)))
+all[is.na(all)] <- 0
+knitr::kable(all)
+
+```
+
+### Distribution of BEC within fires 
+
+We can also review the area ha covered by the fires 
+
+```{r, echo = FALSE}
+
+# look at all BEC fires 
+bec <- st_read(fs::path(spatialOutDir,'BEC_BuMo.gpkg'), quiet = TRUE) |> 
+  dplyr::select(c(ZONE, geom, MAP_LABEL))  #|> 
+ # dplyr::filter(ZONE %in% c("ESSF", "SBS","SBPS"))
+
+fires_bec <- fire_all |> 
+  st_intersection(bec) |> 
+  mutate(area = st_area(geom)) 
+
+# map1 <- ggplot() +
+#   geom_sf(data = fires_bec, aes(fill = MAP_LABEL))+
+#   geom_sf(data = aoi_internal$geom, fill = NA)+
+#   geom_sf(data = aoi_external$geom, fill = NA)+
+#   theme_minimal()
+# map1
+# 
+# ggsave(fs::path(spatialOutDir,'fires_bec_maplabel_all.jpeg'),width = 10, height = 10)
+# 
+# map2 <- ggplot() +
+#   geom_sf(data = fires_bec, aes(fill = ZONE))+
+#   geom_sf(data = aoi_internal$geom, fill = NA)+
+#   geom_sf(data = aoi_external$geom, fill = NA)+
+#   theme_minimal()
+# map2
+# 
+# ggsave(fs::path(spatialOutDir,'fires_bec_zone_all.jpeg'),width = 10, height = 10)
+
+
+
+#st_write(fires_bec, fs::path(spatialOutDir,'fires_perims_bec_20142024.gpkg'),append = FALSE)
+  
+fires_bec <- fires_bec |> 
+  st_drop_geometry() |> 
+  dplyr::mutate(bec_area_burnt = as.numeric(area)/10000)  
+           
+fires_sum <- sum |> select(FIRE_NUMBER, fire_size, area_ha, aoi)
+
+fires_bec <- left_join(fires_bec, fires_sum, by = join_by(FIRE_NUMBER))
+# 
+# map1 <- ggplot() +
+#   geom_sf(data = fires_bec, aes(fill = MAP_LABEL)) +
+#   geom_sf(data = aoi_internal$geom, fill = NA)+
+#   geom_sf(data = aoi_external$geom, fill = NA)+
+#   theme_minimal()
+# map1
+# 
+# ggsave(fs::path(spatialOutDir,'fires_bec_maplabel.jpeg'),width = 10, height = 10)
+# 
+# # 
+# map2 <- ggplot() +
+#  # geom_sf(data = fires_bec$geom, fill = "lightgrey") +
+#   geom_sf(data = fires_bec, aes(fill = ZONE )) +
+# #  geom_sf(data = fire_aoi$geom, fill = "lightblue") +
+#   geom_sf(data = aoi_internal$geom, fill = NA)+
+#   geom_sf(data = aoi_external$geom, fill = NA)+
+#   #geom_sf(data = fire_aoi_ext$geom, fill = "lightgrey") +
+#   #geom_sf(data = ecoi, fill = "lightblue") +
+#   #labs(title = paste0("Ecoprovince : ", stringr::str_to_title(unique(ecoi$ECOPROVINCE_NAME))))+
+#   theme_minimal()
+# # 
+#  map2
+#  ggsave(fs::path(spatialOutDir,'fires_bec_zone.jpeg'),width = 10, height = 10)
+# 
+#######################################
+```
+
+```{r, echo = FALSE}
+
+# look at all BEC fires 
+bec <- st_read(fs::path(spatialOutDir,'BEC_BuMo.gpkg'), quiet = TRUE) |> 
+  dplyr::select(c(ZONE, geom, MAP_LABEL))  #|> 
+ # dplyr::filter(ZONE %in% c("ESSF", "SBS","SBPS"))
+
+fires_bec <- fire_all |> 
+  st_intersection(bec) |> 
+  mutate(area = st_area(geom)) 
+
+ffb <-  fires_bec|> 
+  mutate(area = st_area(geom)) |> 
+  mutate(area_ha = round(as.numeric(area)/10000, 1))
+
+
+# what is the total Bec across the AOI area 
+ffb_sum <- ffb |> 
+  st_drop_geometry() |> 
+  group_by(aoi, ZONE) |> 
+  summarise(total_ha = sum(area_ha)) |> 
+  #ungroup() |> 
+  mutate(per =  100 *total_ha/sum(total_ha)) |> 
+  ungroup() |> 
+  pivot_wider(id_cols = "ZONE", values_from = c(total_ha, per), names_from = aoi)
+
+ffb_sum <- ffb_sum |> 
+  select(ZONE, total_ha_exterior, per_exterior, total_ha_interior, per_interior) |> 
+  mutate(mutate(across(2:5, round, 1))) 
+
+
+ffb_sum[is.na(ffb_sum)] <- 0
+
+
+knitr::kable(ffb_sum)
+
+```
+
+
+
+
+
+These plots show any BEC zone and map no matter the size 
+
+```{r, echo = FALSE, fig.width=6, fig.height=6}
+knitr::include_graphics(fs::path(spatialOutDir,'fires_bec_zone_all.jpeg'))
+```
+
+```{r, echo = FALSE, fig.width=6, fig.height=6}
+knitr::include_graphics(fs::path(spatialOutDir,'fires_bec_maplabel_all.jpeg'))
+```
+
+
+
+
+These are the same bec plots but limited to ESSF, SBS and SBSP.  
+
+```{r, echo = FALSE, fig.width=6, fig.height=6}
+knitr::include_graphics(fs::path(spatialOutDir,'fires_bec_zone.jpeg'))
+```
+
+```{r, echo = FALSE, fig.width=6, fig.height=6}
+knitr::include_graphics(fs::path(spatialOutDir,'fires_bec_maplabel.jpeg'))
+```
+

@@ -21,6 +21,7 @@ library(readr)
 library(lubridate)
 library(gstat)
 
+
 DataDir <- 'data'
 spatialDir <- fs::path(DataDir,'spatial')
 
@@ -136,6 +137,24 @@ st_fire_dailies <- mods |>
 #  filter(!is.na(FIRE_WEATHER_INDEX)) |> 
   arrange(DATE)
 
+# # convert to a raster 
+# # read in stations
+# st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg"))
+# 
+# # read in temp raster
+# dem <- rast(fs::path(spatialOutDir, "DEM3005_BuMo.tif"))
+# # convert any values >0 to 1
+# dem[dem > 0] <- 1
+# dem[dem <0 ] <- 0
+# 
+# temp <- dem
+# # this can be our template raster 
+# 
+# raster_points <- as.points(temp, values = FALSE)
+# 
+# =======
+fire_st <- unique(st_fire_dailies$STATION_CODE)
+fire_dates <- unique(st_fire_dailies$DATE)
 
 # convert to a raster 
 # read in stations
@@ -152,8 +171,6 @@ temp <- dem
 
 raster_points <- as.points(temp, values = FALSE)
 
-# fire_st <- unique(st_fire_dailies$STATION_CODE)
-# fire_dates <- unique(st_fire_dailies$DATE)
 
 # generate daily averages for other temperature metrics
 st_dailies <- mods |> 
