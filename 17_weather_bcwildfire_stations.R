@@ -243,7 +243,7 @@ mods <- mods |>
   filter(month %in% c("04","05","06","07","08","09","10")) |> 
   mutate(year = substr(DATE_TIME, 1 ,4)) |> 
   select(-TIME) |> 
-  mutate(HOURLY_WIND_SPEED = as.integer(HOURLY_WIND_SPEED* 10),
+  mutate(HOURLY_WIND_SPEED = as.integer(HOURLY_WIND_SPEED* 10), 
          HOURLY_WIND_DIRECTION = as.integer(HOURLY_WIND_DIRECTION))
 
 st_test <- st |> 
