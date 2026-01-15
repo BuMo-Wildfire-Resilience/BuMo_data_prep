@@ -140,13 +140,7 @@ st_fire_dailies <- mods |>
 # # convert to a raster 
 # # read in stations
 # st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg"))
-# 
-# # read in temp raster
-# dem <- rast(fs::path(spatialOutDir, "DEM3005_BuMo.tif"))
-# # convert any values >0 to 1
-# dem[dem > 0] <- 1
-# dem[dem <0 ] <- 0
-# 
+# # 
 # temp <- dem
 # # this can be our template raster 
 # 
@@ -163,8 +157,11 @@ st <- st_read(path(spatialDir, "weather", "weather_stations.gpkg"))
 # read in temp raster
 dem <- rast(fs::path(spatialOutDir, "DEM3005_BuMo.tif"))
 # convert any values >0 to 1
-dem[dem > 0] <- 1
-dem[dem <0 ] <- 0
+ dem[dem > 0] <- 1
+ dem[dem <0 ] <- 0
+# dem[dem < 2] <- NA
+# dem[is.na(dem)] <- 1
+# writeRaster(dem, fs::path(spatialOutDir, "BuMo_template1.tif"))
 
 temp <- dem
 # this can be our template raster 
@@ -263,7 +260,7 @@ mod_years <- unique(mods$year)
 mod_months <- unique(mods$month)
 
 # loop through years # complete 2014[1]
-mod_years  <- mod_years[10]
+#mod_years  <- mod_years[10]
 
 all_years <- purrr::map(mod_years, function(yy) {
   
