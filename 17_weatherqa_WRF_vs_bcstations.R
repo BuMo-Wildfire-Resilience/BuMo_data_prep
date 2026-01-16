@@ -82,6 +82,23 @@ out <- purrr::map(st$WEATHER_STATIONS_ID, function(ii){
 
 
 
+# format the data into id outputs 
+
+
+
+# read in the raw data 
+
+
+
+# compare the values 
+
+
+
+
+# plot values. 
+
+
+
 
 
 
