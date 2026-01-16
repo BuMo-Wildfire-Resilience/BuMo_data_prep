@@ -8,6 +8,9 @@
 # 2) format and downsample? STILL TO DO 
 # 3) generate FWI metrics etc using the "cffdrs/cffdrs_r" functions - TEMPLATE FILTER AS OF AUGST 26
 
+#WRF details 
+#https://www2.mmm.ucar.edu/wrf/users/wrf_users_guide/build/html/output_variables.html
+
 ## requires: 
 # - .nc files for WRF data 
 # csffdr_utils.R to run 
@@ -32,7 +35,6 @@ out_dir <- fs::path(spatialOutDir, "weather_wrf_raster")
 raster_template<- rast(file.path(spatialOutDir, "template_BuMo.tif"))
 raster_template[raster_template ==1]<- 0
 
-
 # read in weather data 
 list.files(file.path(spatialDir,'weather_wrf'))
 
@@ -40,12 +42,11 @@ list.files(file.path(spatialDir,'weather_wrf'))
 yrs <- c("2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024")
 
 # set up years and months 
-yrs <- c("2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024")
+#yrs <- c("2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024")
 
 ################################################################################
-# 1) accumulated precip 
+# 1) accumulated precip - no correction for downscale
 ################################################################################
-#TODO - need to get the key to columns names from Kiri
 
 weather <- terra::rast(file.path(spatialDir,'weather_wrf','AccumPrecip_BuMo.nc'))
 noi_full <- names(weather)
@@ -57,8 +58,6 @@ numlist <- format(numlist, "%Y%m%d")
 length(numlist)
 
 # filter list of numbers per year 
-
-
 # cycle through each yr 
 
 all_years <- purrr::map(yrs, function(y) {
@@ -101,7 +100,7 @@ all_years <- purrr::map(yrs, function(y) {
 
 
 #####################################################################################
-#2) wind speed  
+#2) wind speed  - no correction for downscale
 ####################################################################################
 #ws_1300_BuMo.nc
 # note the valies here are * 10 to keep a single decimal place when converted to an integer
@@ -156,7 +155,7 @@ all_years <- purrr::map(yrs, function(y) {
 
 
 ####################################################################################
-# Wind Direction - 1 pm 
+# Wind Direction - 1 pm - no correction for downscale
 ####################################################################################
 
 #wdir_1300_BuMo
@@ -214,19 +213,193 @@ all_years <- purrr::map(yrs, function(y) {
 # "TQP_1300_BuMo.nc"
 # How to calculate the relative humidity from temp, specific humidity and pressure 
 
+# T2 is 2m temperature, PSFC is surface pressure, and Q2 is specific humidity.
+# Need to correct temperature for altitude using : Environment canada methodology
 
+# Elevation grid = DEM 
+dem <- rast(file.path(spatialOutDir, "DEM3005_BuMo.tif"))
+
+# read in stacked nc file
 tqp <- terra::rast(file.path(spatialDir,'weather_wrf','TQP_1300_BuMo.nc'))
-names(tqp)
-tail(names(tqp))
+#names(tqp)
+#tail(names(tqp))
 
-names(tqp)[13000]
+#T2_Times=19900317.875 
+#names(tqp)[13000]
+
+###########################################################################
+# 1) temperature - might not need these but they are available as needed.  
+# outputs from WRF
+#float T2(Time, south_north, west_east) ;
+#T2:description = "TEMP at 2 M" ;
+#T2:units = "K" ;
+
+
+noi_full_all <- names(tqp)
+noi_full <- noi_full_all[grep("T2_Times=", noi_full_all)]
+noi <- gsub("T2_Times=", "", noi_full)
+noi <- gsub(".875", "", noi)
+
+# cycle through each yr 
+yrs <- c("2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024")
+
+#yrs <- c("2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024")
+
+all_years <- purrr::map(yrs, function(y) {
+  
+  print(y)
+#  y <- yrs[1]
+  
+  noi_tf1 <- stringr::str_starts(noi, y)
+  yr_noi_full <- noi_full[which(noi_tf1 == TRUE)]
+  
+  # subset months
+  yr_noi  <- gsub("T2_Times=", "", yr_noi_full )
+  yr_noi  <- gsub(".875", "", yr_noi )
+  
+  moi <- paste(c( paste0(y, "04"), paste0(y, "05"),paste0(y, "06"),paste0(y, "07"),paste0(y, "08"),paste0(y, "09"),paste0(y, "10")), collapse = "|") #  , "2015*", "2016*", "2017*", "2018*", "2019*", "2020*", "2021*", "2022*", "2023*", "2024*"), collapse = "|")
+  
+  ymoi_tf <- stringr::str_starts(yr_noi, moi)
+  yrmt_noi <- yr_noi_full[which(ymoi_tf == TRUE)]
+  
+  # cycle through each file and projector
+  
+  yrmth = purrr::map(yrmt_noi, function(ii){
+    #ii <- yrmt_noi[1]    #test
+    
+    # get names for output 
+    names <- gsub("T2_Times=", "", ii )
+    names <- gsub(".875", "", names)
+    
+    wdi <- tqp[[ii]]
+    wdip <- project(wdi, raster_template)
+    
+    # convert from Kelvin to celcius 
+    wdip <-  wdip -273.15
+    
+    # adjust for dem 
+    wdip_alt <- wdip - (dem/1000)*6.5
+    
+    # convert to interger
+    wdip_alt <-  wdip_alt *10
+    wdip_alt <- as.int(wdip_alt)
+    
+    names(wdip_alt) <- names
+    
+    writeRaster(wdip_alt, file.path(out_dir, "temp2mcorrected", paste0(names, '14_temp.tif')), overwrite=TRUE)
+    
+  }) # end of month cycle
+  
+})
 
 
 
+# Calculate relative humidity 
+# requires T = temperature, Q2 = water vapour mixing ration, P = pressure.
+# according to the Canadian FWI corrections, fro relative humidity the mixing ration (ratio of water vapour to dry air by weight)
+# is assumed to be constant with elevation. The mixing ratio is calulated for each station and interpolated (hoevere we are using WRF data)
+# The relative humidity is then calculated on a cell by cell basis using adjusted temperature grid. 
+
+# need to adjust Temperature and Pressure (optional but encouraged)
+# temperature is already adjusted 
+
+#float T2(Time, south_north, west_east) ;
+#T2:description = "TEMP at 2 M" ;
+#T2:units = "K" ;
+
+#float Q2(Time, south_north, west_east) ;
+#Q2:description = "QV at 2 M" ;
+#Q2:units = "kg kg-1" ;
+
+#float PSFC(Time, south_north, west_east) ;Surface temperature 
+#PSFC:description = "SFC PRESSURE" ;
+#PSFC:units = "Pa" ;
 
 
+# Elevation grid = DEM 
+dem <- rast(file.path(spatialOutDir, "DEM3005_BuMo.tif"))
 
+# Optional: use mean terrain as reference
+#z_ref <- global(dem, "mean", na.rm = TRUE)[1] |> 
+#  pull()
 
+# read in stacked nc file
+tqp <- terra::rast(file.path(spatialDir,'weather_wrf','TQP_1300_BuMo.nc'))
+filesdate <- list.files(file.path(out_dir, "temp2mcorrected"))
+
+# get list of files of adjusted temperatures 
+loopfiles <- purrr::map(filesdate, function(ff){
+  
+ # ff <- filesdate[80]
+  print(ff)
+  #t <- rast(file.path(out_dir, "temp2mcorrected", ff))
+  name <- gsub("14_temp.tif", "", ff)
+  # convert temp back to  Kelvin to celcius 
+  #t_ff <-  (t /10)
+  #t_ff <- t + 273.15
+  
+  # get q2 
+  q2_name <- paste0("Q2_Times=", name,".875")
+  q2_ff <- tqp[[q2_name]]
+  q2_ff <- project(q2_ff, raster_template)
+  
+  # read in raw temp also 
+  t2_name <- paste0("T2_Times=", name,".875")
+  t2_ff <- tqp[[t2_name]]
+  t2raw_ff <- project(t2_ff, raster_template)
+  
+  # read in pressure
+  p_ff <- paste0("PSFC_Times=", name,".875")
+  p_ff  <- tqp[[p_ff]]
+  p_ff <- project(p_ff, raster_template)
+  
+  # correct pressure for altitude 
+  # g     <- 9.80665   # m s-2
+  # Rd    <- 287.05    # J kg-1 K-1
+   
+   # correct temp for altitide
+   t_corr <- t2raw_ff + (-0.0065 *(dem-0))
+   
+   #correct pressure for alititde
+   p_corr <- p_ff * exp(-9.80665 * (dem / (87.05 * t2raw_ff)))
+ 
+   # calculate the relative humidity 
+    # Constants (Bolton / WRF)
+    p <- p_corr #p_ff
+    q <- q2_ff
+    t <- t_corr #t2raw_ff # t2_ff 
+
+    # vapour presure 
+    e  <- (p * q)/ (0.622 + (1 - 0.622) * q)
+    # saturation vapour pressure 
+    es <-  611.2 * exp((17.67 * (t - 273.15)) / (t - 29.65))
+    # relative humidity (%) 
+    rh <- (100 * (e / es))
+    rh <- clamp(rh, lower = 0, upper = 100, values = TRUE)
+    rh <- as.int(rh)
+    #plot(rh)
+  
+    writeRaster(rh, file.path(out_dir, "rh_12noon", paste0(name, '12_rh.tif')), overwrite=TRUE)
+    
+    # # calculate the relative humidity - USING UNCORRECTED VALUS 
+    # # Constants (Bolton / WRF)
+    # p <- p_ff #p_ff
+    # q <- q2_ff
+    # t <- t2raw_ff #t2raw_ff # t2_ff 
+    # 
+    # # vapour presure 
+    # e  <- (p * q)/ (0.622 + (1 - 0.622) * q)
+    # # saturation vapour pressure 
+    # es <-  611.2 * exp((17.67 * (t - 273.15)) / (t - 29.65))
+    # # relative humidity (%) 
+    # rhr <- (100 * (e / es))
+    # rhr <- clamp(rhr, lower = 0, upper = 100, values = TRUE)
+    # plot(rhr)
+    # 
+    # dif <- rh - rhr
+    # writeRaster(dif , file.path(out_dir, "rh_12noon", paste0(name, '12_rh.tif')), overwrite=TRUE)
+    
+    }) 
 
 
 
