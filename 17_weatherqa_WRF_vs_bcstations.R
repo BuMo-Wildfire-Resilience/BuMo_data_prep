@@ -80,23 +80,99 @@ out <- purrr::map(st$WEATHER_STATIONS_ID, function(ii){
   
 }) |> bind_rows()
 
+saveRDS(out, file.path(out_dir_wrf, "WRF_station_intersect_dataQA.RDS"))
 
+out <- readRDS(file.path(out_dir_wrf, "WRF_station_intersect_dataQA.RDS")) 
 
 # format the data into id outputs 
+library(dplyr)
+library(tidyverse)
+outa <- out[1:100,]
+
+outa <- out |> 
+  rowwise() |> 
+  mutate(raster_date = gsub("out/spatial/weather_wrf_raster/", "", raster_name)) |> 
+  mutate(raster_date = gsub(".tif", "", raster_date)) |> 
+  mutate(type = stringr::str_split(raster_date, pattern = "/", n = 2, simplify = TRUE)[1]) |> 
+  mutate(date = stringr::str_split(raster_date, pattern = "/", n = 2, simplify = TRUE)[2]) |> 
+  mutate(date = stringr::str_split(date, pattern = "_", n = 2, simplify = TRUE)[1]) |> 
+  mutate(date = substr(date, 1, 8)) |> 
+  select(-raster_name, -raster_date)
 
 
+outa <- outa |> 
+ # select(-raster_name, -raster_date)|> 
+  mutate(date = substr(date, 1, 8))
+  
+#outaa <- outa[1:100,]
 
-# read in the raw data 
+outa_l <- outa |> 
+  pivot_wider(id_cols = c("date", "id"), values_from = "values", names_from = "type")
+     
 
+mods <- mods |> 
+  mutate(date = substr(DATE_TIME, 1,8)) |> 
+  select(-month, -year, -STATION_NAME, -DATE_TIME) 
 
+mods = mods |> 
+  mutate(id = STATION_CODE)
+
+# join together on date and id
+all <- left_join(mods, outa_l, by = c("id", "date"))
+all1 <- na.omit(all)
+
+all1 <- all1 |> 
+  select(-STATION_CODE, -PRECIPITATION, -accumprecip24)
 
 # compare the values 
+library(ggplot2)
+
+aa <- all1 |> 
+  filter(id == "21")
 
 
+ggplot(aa)+
+  geom_point(aes(y = rh_12noon, x= date))+
+  facet_wrap(~id)
+
+      "HOURLY_WIND_DIRECTION"    "HOURLY_TEMPERATURE"       "HOURLY_RELATIVE_HUMIDITY" "date"                    
+                   "temp2mcorrected"          "wdir_12noon"              "wspeed_12noon"
+
+# relative humidity 
+ggplot(all1, aes(x = rh_12noon, y = HOURLY_RELATIVE_HUMIDITY)) +
+  geom_bin2d()+
+  #geom_point() +
+  facet_wrap(~id)+
+  labs(title = "Relative humidity")
 
 
-# plot values. 
+# wind speed
+ggplot(all1, aes(y = HOURLY_WIND_SPEED, x = wspeed_12noon)) +
+  geom_bin2d()+
+  #geom_point() +
+  facet_wrap(~id)+
+  labs(title = "Wind Speed")
 
+
+# wind directions 
+ggplot(all1, aes(y = HOURLY_WIND_DIRECTION, x = wdir_12noon)) +
+  geom_bin2d()+
+  #geom_point() +
+  facet_wrap(~id)+ 
+  labs(title = "Wind Direction")
+
+
+# hourly temp 
+all1 <- all1 |> 
+  mutate(temp = temp2mcorrected/10)
+
+
+# wind directions 
+ggplot(all1, aes(y = HOURLY_TEMPERATURE, x = temp)) +
+  geom_bin2d()+
+  #geom_point() +
+  facet_wrap(~id)+ 
+  labs(title = "Temperatue")
 
 
 

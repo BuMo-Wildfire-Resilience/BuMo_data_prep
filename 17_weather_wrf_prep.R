@@ -28,7 +28,6 @@ spatialDir <- fs::path(DataDir,'spatial')
 OutDir <- 'out'
 dataOutDir <- file.path(OutDir,'data')
 spatialOutDir <- file.path(OutDir,'spatial')
-out_dir <- fs::path(spatialOutDir, "weather_wrf_raster")
 
 
 # read in template and convert to points and coordinates
@@ -51,7 +50,6 @@ yrs <- c("2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022",
 weather <- terra::rast(file.path(spatialDir,'weather_wrf','AccumPrecip_BuMo.nc'))
 noi_full <- names(weather)
 length(names(weather)) # 12814
-
 
 numlist <- seq(as.Date("1989-09-01"), as.Date("2024-09-30"), by = "day")
 numlist <- format(numlist, "%Y%m%d")
@@ -108,6 +106,8 @@ ws <- terra::rast(file.path(spatialDir,'weather_wrf','ws_1300_BuMo.nc'))
 #length(names(ws)) #12804
 #names(ws)
 #tail(names(ws))
+#ww <- ws[["ws_Times=20230929.875"]]
+
 
 noi_full <- names(ws)
 noi <- gsub("ws_Times=", "", noi_full)
@@ -162,6 +162,8 @@ all_years <- purrr::map(yrs, function(y) {
 wd <-terra::rast(file.path(spatialDir,'weather_wrf','wdir_1300_BuMo.nc'))
 #length(names(wd)) #12803
 #tail(names(wd))
+#ww <- wd[["wdir_Times=20230930.875"]]
+
 
 noi_full <- names(wd)
 noi <- gsub("wdir_Times=", "", noi_full)
