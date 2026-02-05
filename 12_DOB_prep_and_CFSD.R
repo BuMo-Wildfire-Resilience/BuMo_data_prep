@@ -121,7 +121,6 @@ if(!dir.exists(fs::path(spatialOutDir, "DOB"))) {
 
 dob_dir <- fs::path(spatialOutDir, "DOB")
 
-
 # read in fire perimeters and extract the hotspots per fire. 
 # 385
 #a <- "R20264"
@@ -131,7 +130,7 @@ dob_dir <- fs::path(spatialOutDir, "DOB")
 fire.list <- unique(fire.perims$FIRE_NUMBER)
 
 for (xx in 121:length(fire.list)) {
-  #xx <- 120
+  xx <- 120
   fire <- fire.list[[xx]]
   print(fire)
   fire.shp <- subset(fire.perims, FIRE_NUMBER == fire)
@@ -249,8 +248,9 @@ fire.perims <- st_transform(fire.perims, 4326)
 
 fire_loop <- sort(unique(fire.perims$FIRE_NUMBER))
 
+
 all_fires <- purrr::map(fire_loop, function(f) {
- #f <- fire_loop[1]
+  #f <- fire_loop[224]
   print(f)
 
   # read in the example dataset
@@ -306,6 +306,57 @@ all_fires <- purrr::map(fire_loop, function(f) {
       grid.jday <- trunc(grid.jday)
       writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_yday_krig.tif"), overwrite = T)
     }
+  
+    # version #2 
+    # generate output with 50 % confidence threshold
+    
+    hotspots <- st_read(fs::path(spatialOutDir, "DOB", f, paste0(f, "_hotspots.gpkg")))
+    
+    if(any(names(hotspots) %in% "confidence")){
+    # filter the hotspots by confidence over 50 and drop low 
+    uconfidence <- as.numeric(unique(hotspots$confidence))
+    uconfidence <- as.character(uconfidence[uconfidence>50])
+    uconfidence <- uconfidence[!is.na(uconfidence)]
+    uconfidence <- c(uconfidence, "n", "h")
+    # filter hotspots 
+    hotspots_c <- hotspots |> 
+      filter(confidence %in% uconfidence)
+    
+    hotspots_c <- vect(hotspots_c)
+    hotspots_c <- terra::project(hotspots_c, crs(bcrast))
+    
+    # Spatially crop to perimeter + 1000 m
+    perimeter_buf <- terra::buffer(vect(perimeter), 1000)
+    hotspots_c <- terra::crop(hotspots_c, perimeter_buf)
+    
+    # 2.0 Interpolation --------------------------------------------
+    # Here we use the subset hotspots and pre-defined perimeter to interpolate fire arrival time using kriging
+    grid.fire <- terra::crop(bcrast, perimeter)
+    
+    grid.fire <- terra::rasterize(perimeter, grid.fire, fun = "max", field = 0)
+    
+    grid.pt <- stars::st_as_stars(grid.fire)
+    grid.pt <- st_as_sf(grid.pt, as_points = TRUE, merge = FALSE)
+    
+    # hotspots$JDAYDEC <- hotspots$JDAYDEC - timezone_offset/24
+    hotspots_c <- st_as_sf(hotspots_c) # gstat needs sf
+    
+    # kriging
+    dob.kriged <- gstat::variogram(date ~ 1, hotspots_c)
+    if (is.null(dob.kriged)) {
+      cli::cli_alert_warning("Unable to calculate the variogram for {f}. Skipping...")
+    } else {
+      dob.fit <- fit.variogram(dob.kriged, vgm(c("Exp", "Sph", "Mat")))
+      dob.kriged <- krige(date ~ 1, hotspots_c, grid.pt, model = dob.fit, nmax = 6)
+      
+      # Assign values to grid, using GRID.FIRE as a base raster
+      grid.jday <- grid.fire
+      grid.jday[!is.na(grid.jday)] <- dob.kriged$var1.pred
+      writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_decimal_krig_confth.tif"), overwrite = T)
+      #grid.jday <- trunc(grid.jday)
+      #writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_yday_krig.tif"), overwrite = T)
+    }
+    }
   }
 })
 
@@ -313,10 +364,10 @@ all_fires <- purrr::map(fire_loop, function(f) {
 # summary of how many fires were processed
 all_fires <- list.files(fs::path(spatialOutDir, "DOB"), full.names = TRUE, recursive = TRUE, pattern = "firearrival_yday_krig.tif")
 # 182 fires processed
+all_conf_fires <- list.files(fs::path(spatialOutDir, "DOB"), full.names = TRUE, recursive = TRUE, pattern = "firearrival_decimal_krig_confth.tif")
 
-
-
-
+all_fires
+all_conf_fires
 # up to here 
 
 

@@ -12,10 +12,11 @@ OutDir <- 'out'
 dataOutDir <- file.path(OutDir,'data')
 spatialOutDir <- file.path(OutDir,'spatial')
 
-
-
 library(terra)
 library(sf)
+library(dplyr)
+library(ggplot2)
+library(fs)
 
 # get list of fires
 
@@ -29,25 +30,22 @@ fire.perims <- st_read(fs::path(spatialOutDir, "HistoricFire.gpkg")) |>
 # point to dob dir # these are wgs84 
 dob_dir <- fs::path(spatialOutDir, "DOB")
 
-
 # DOB rasters (can't stack because different extents)
 DOB_list <- list.files(dob_dir,
-                       pattern = "*firearrival_decimal_krig.tif", 
+                       pattern = "*firearrival_decimal_krig_confth.tif", 
                        recursive = TRUE, 
                        full.names=TRUE)
 
-DOB_list <- DOB_list[grepl("R21721", DOB_list)]
-
-DOB_list
-
+#DOB_list <- DOB_list[grepl("R21721", DOB_list)]
+#DOB_list
 
 
 #-----------------DOB to fire runs-----------------#
 for (i in 1:length(DOB_list)){
-  i <- 1
-  
+  #i <- 1
+  print(i)
   dobname <- gsub("out/spatial/DOB/", "", DOB_list[i])
-  dobfire <- gsub("/firearrival_decimal_krig.tif", "",  dobname )
+  dobfire <- gsub("/firearrival_decimal_krig_confth.tif", "",  dobname )
     
   DOB <- rast(DOB_list[i])
   # Round DOB values to whole numbers
@@ -55,14 +53,14 @@ for (i in 1:length(DOB_list)){
   
   # get point of ignition 
   poi <- min(values(DOB), na.rm = TRUE)
-
+  if(poi!= Inf){
   # reclassify the values into three groups 
   # all values > 0 and <= 0.25 become 1, etc.
   m <- c(0, poi, 0,  poi, poi, 1,  poi+1, 365, 0)
   rclmat <- matrix(m, ncol=3, byrow=TRUE)
   poi_r <- terra::classify(DOB, rclmat)
-
-  
+ 
+  } 
   #if(is.na(unique(values(DOB)))){
   # Get count for each day
   count <- freq(DOB)
@@ -92,12 +90,20 @@ for (i in 1:length(DOB_list)){
   writeRaster(runs, fs::path(dob_dir, dobfire, "csfd_firerun.tif"),  overwrite = TRUE)
  
   # output the Point of ignition raster 
+  if(poi!=Inf){
   writeRaster(poi_r,fs::path(dob_dir, dobfire, "poi_firerun.tif"),  overwrite = TRUE) 
-  
-  
+  }
   # add a plot with the 
+  #library(ggplot2)
+  p1 <- ggplot(count, aes(x = value, y = count))+
+    geom_point() + geom_line()+
+    labs(x = "julian day", y = "pixal count", title = paste0(dobfire, " : fire spread per day"))
   
-  
+  ggsave(fs::path(dob_dir, dobfire, "fire_spread.png"), 
+         p1, 
+         width = 30,
+         height = 20,
+         units = "cm")
   
   }
 }
