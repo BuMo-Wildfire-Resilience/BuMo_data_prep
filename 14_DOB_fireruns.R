@@ -107,3 +107,9 @@ for (i in 1:length(DOB_list)){
   
   }
 }
+
+
+
+###############################################################################
+
+# side analysis - is there a difference where suppression is applied 
