@@ -1,47 +1,34 @@
-#############################################################################
-# CFSDB - Estimate day of burning and extract covariates
-# Quinn Barber, October 2023
-##############################################################################
-# This code interpolates fire detection hotspots for a single fire and extracts
-# environmental covariates based on the interpolated day of burn. The full Canadian
-# Fire Spread Database (CFSDB) requires running this code over all NBAC fires over
-# 1,000 ha in final size
+# download the data for VIIRS HOTspots analysis and generte date of burn using the the CSF kriging dataset
+# this is very similar to the raters layers saved on The Canadian Fire Spread Dataset : Fire growth raster dataset 
+#https://osf.io/f48ry/overview
 
-# Required inputs: final fire perimeter (can be a convex/concave hull around hotspots),
-# hotspots cropped to fire period, environmental covariates of interest, and a base
-# raster. 
-
-# For comprehensive code using the National Burned Area Composite, contact Quinn Barber
-# quinn.barber@nrcan-rncan.gc.ca
-
-
-#######################################################################
-# Gen's how to detailed notes: 
-
-# First step is to down load the fire predictive spread data set : https://osf.io/f48ry/files/osfstorage
-
-#install.packages(c("terra", "dplyr", "tidyterra", "stringr", "data.table", "gstat", "rmapshaper", "sf", "stars", "lubridate", "units", "mgcv"))
-
-## test another method ffor fire detections from single fire event
-library(terra)
-library(dplyr)
-library(tidyterra)
-library(stringr)
-library(data.table)
 library(gstat)
-library(rmapshaper)
-library(sf)
-library(stars)
-library(lubridate)
-library(units)
-library(mgcv)
-#library(stars)
-library(FNN)
-library(timeDate)
-library(igraph)
 library(fs)
+library(sf)
+library(dplyr)
+library(lubridate)
+library(terra)
 library(purrr)
-## se tup data directories
+
+# Stage 1 selects those fire detection points that will be used to model day of burning (DOB) and write those points to a shapefile  #############
+# 																						                                                                                            #############
+# NOTE THAT THIS CODE IS SPECIFIC TO FIRE DETECTION DATA OBTAINED FIRMS:										                                            #############
+# https://firms.modaps.eosdis.nasa.gov/download/                                                               				                  #############
+#	Step 1: download the csv raw hotspot files for modis, viirs_jpss and viirs_snpp for canada. 
+# Step 2: save into folder. In this case we are using hotsp_dir as the reference
+# 
+# library(tidyterra)
+# library(stringr)
+# library(data.table)
+# library(gstat)
+# library(rmapshaper)
+# library(stars)
+# library(units)
+# library(mgcv)
+# library(FNN)
+# library(timeDate)
+# library(igraph)
+# ## se tup data directories
 
 DataDir <- 'data'
 spatialDir <- fs::path(DataDir,'spatial')
@@ -50,15 +37,20 @@ OutDir <- 'out'
 dataOutDir <- file.path(OutDir,'data')
 spatialOutDir <- file.path(OutDir,'spatial')
 
+#raw_hotspots <- 
+hotsp_dir <- fs::path("../../../00_data/base_vector/canada/hotspots/")
+
+# use the full compliment
+fire.perims <- st_read(fs::path(spatialOutDir, "HistoricFire.gpkg")) |> 
+  filter(FIRE_YEAR >2013) |> 
+  select(c("FIRE_NUMBER", "FIRE_YEAR","FIRE_CAUSE", "FIRE_SIZE_HECTARES","FIRE_DATE", "geom"))
 
 # This is a .gpkg of fire perimeters
-fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20142024.gpkg"))
+#fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20142024.gpkg"))
 fire.perims <- st_transform(fire.perims, 4326)
 
 # Set the output pixel size here. Canadian folk might want to consider 100 or 200 m.
-
-pixel.size = 100
-
+#pixel.size = 100
 # set projection; this is the standard projection used by many national (USA) programs
 
 the.prj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs"
@@ -73,40 +65,42 @@ the.prj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0
 #																						                                                                                         
 ## Get MODIS fire detections
 
-if (file.exists(fs::path("data", "spatial", "Hotspots", "hotspots_all_20102024.gpkg"))) {
-  hotspots <- st_read(fs::path("data", "spatial", "Hotspots", "hotspots_all_20102024.gpkg"))
+if (file.exists(fs::path("data", "spatial", "Hotspots", "hotspots_bumo.gpkg"))) {
+  hotspots <- st_read(fs::path("data", "spatial", "Hotspots", "hotspots_bumo.gpkg"))
 } else {
-  hs_dir <- fs::path("data", "spatial", "Hotspots", "MODIS")
-  all_files <- list.files(hs_dir, recursive = TRUE)
   
+  all_files <- list.files(hotsp_dir, recursive = TRUE, pattern = "modis*")
+  
+  #modis 
   mods <- purrr::map(all_files, function(x) {
-    # x <- all_files[2]
-    tfile <- read.csv(fs::path(hs_dir, x))
-    tfile <- tfile[, c("latitude", "longitude", "acq_date", "acq_time", "satellite", "instrument")]
+  #  x <- all_files[11]
+    tfile <- read.csv(fs::path(hotsp_dir, x))
+    tfile <- tfile[, c("latitude", "longitude", "acq_date", "acq_time", "satellite", "instrument", "confidence")]
+    tfile 
     tsf <- st_as_sf(tfile, coords = c("longitude", "latitude"), crs = 4326)
     st_geometry(tsf) <- "geom"
     tsf_int <- st_intersects(tsf, fire.perims, sparse = FALSE)
     tsf_sub <- tsf[apply(tsf_int, 1, any), ]
-    tsf_sub
+    #tsf_sub <- tsf_sub |> 
+      #filter(confidence >= 50)
     # mapview::mapview(tsf_sub)
   }) |> bind_rows()
   
   # viirs
-  vr_dir <- fs::path("data", "spatial", "Hotspots", "VIIRS")
-  all_files <- list.files(vr_dir, recursive = TRUE)
+  all_files <- list.files(hotsp_dir, recursive = TRUE, pattern = "viirs*")
   
   virs <- purrr::map(all_files, function(x) {
-    # x <- all_files[2]
-    tfile <- read.csv(fs::path(vr_dir, x))
-    tfile <- tfile[, c("latitude", "longitude", "acq_date", "acq_time", "satellite", "instrument")]
+    #x <- all_files[2]
+    tfile <- read.csv(fs::path(hotsp_dir, x))
+    tfile <- tfile[, c("latitude", "longitude", "acq_date", "acq_time", "satellite", "instrument","confidence")]
     tsf <- st_as_sf(tfile, coords = c("longitude", "latitude"), crs = 4326)
     st_geometry(tsf) <- "geom"
     tsf_int <- st_intersects(tsf, fire.perims, sparse = FALSE)
     tsf_sub <- tsf[apply(tsf_int, 1, any), ]
-    tsf_sub
+    #tsf_sub <- tsf_sub |> 
+    #  filter(confidence != "l")
     # mapview::mapview(tsf_sub)
   }) |> bind_rows()
-  
   
   # Combine MODIS and VIIRS
   hotspots <- rbind(mods, virs) # Combine MODIS and VIIRS
@@ -114,9 +108,10 @@ if (file.exists(fs::path("data", "spatial", "Hotspots", "hotspots_all_20102024.g
   hotspots <- hotspots |> 
     mutate(fire_year = year(acq_date)) 
   
-  st_write(hotspots, fs::path("data", "spatial", "Hotspots", "hotspots_all_20102024.gpkg"), append = FALSE)
+  st_write(hotspots, fs::path("data", "spatial", "Hotspots", "hotspots_bumo.gpkg"), append = FALSE)
 }
 
+hotspots <- st_read(fs::path("data", "spatial", "Hotspots", "hotspots_bumo.gpkg"))
 
 # create an output folder 
 
@@ -128,11 +123,15 @@ dob_dir <- fs::path(spatialOutDir, "DOB")
 
 
 # read in fire perimeters and extract the hotspots per fire. 
+# 385
+#a <- "R20264"
+#fire.list
+#which(fire.list=="R20264")
 
 fire.list <- unique(fire.perims$FIRE_NUMBER)
 
-for (xx in 1:length(fire.list)) {
-  #xx <- 42
+for (xx in 121:length(fire.list)) {
+  #xx <- 120
   fire <- fire.list[[xx]]
   print(fire)
   fire.shp <- subset(fire.perims, FIRE_NUMBER == fire)
@@ -152,16 +151,11 @@ for (xx in 1:length(fire.list)) {
   
   # Again, if there are dates for specific fires that are invalid, they can be stated here. The numbers correspond to Julian day.
   
-  if (fire == 'MT4715311245620170723') {
-    min.date <- 200; max.date <- 300 }
-  
-  
   # This actually selects fire detections points relevant to the fire of interest
   
   fire.hotspots <- hotspots[fire.shp.buffer.dd,]
   
   fire.hotspots <- fire.hotspots[fire.hotspots$fire_year == fire_year_perim,]
-  
   
   if (nrow(fire.hotspots) == 0 ) {
     cli::cli_alert_warning("No hotspots found for {fire}. Skipping...")
@@ -212,7 +206,7 @@ for (xx in 1:length(fire.list)) {
       }
     }	
     
-    fire.hotspots <- subset(fire.hotspots, select=c('ID', 'acq_date', 'acq_time', 'satellite', 'date', 'time', 'loc_JDT'))
+    fire.hotspots <- subset(fire.hotspots, select=c('ID', 'acq_date', 'acq_time', 'satellite', 'confidence','date', 'time', 'loc_JDT'))
     
     if(!dir.exists(fs::path(dob_dir, fire))) {
       dir.create(fs::path(dob_dir, fire))
@@ -240,20 +234,27 @@ AOI <- st_read(file.path(spatialOutDir,"AOI.gpkg"))
 
 # read in template 
 bcrast <- rast(fs::path(spatialOutDir, "template_BuMo.tif"))
-fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20142024.gpkg"))
+#fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20142024.gpkg"))
+# use the full compliment
+fire.perims <- st_read(fs::path(spatialOutDir, "HistoricFire.gpkg")) |> 
+  filter(FIRE_YEAR >2013) |> 
+  select(c("FIRE_NUMBER", "FIRE_YEAR","FIRE_CAUSE", "FIRE_SIZE_HECTARES","FIRE_DATE", "geom"))
+
+# This is a .gpkg of fire perimeters
+#fire.perims <- st_read(fs::path(spatialOutDir, "fires_perims_20142024.gpkg"))
+fire.perims <- st_transform(fire.perims, 4326)
+
 
 # loop through all the fires and model the spread 
 
 fire_loop <- sort(unique(fire.perims$FIRE_NUMBER))
 
 all_fires <- purrr::map(fire_loop, function(f) {
-  #f <- fire_loop[19]
+ #f <- fire_loop[1]
   print(f)
 
   # read in the example dataset
-
   perimeter <- fire.perims |> filter(FIRE_NUMBER == f)
-
   perimeter <- st_transform(perimeter, crs(bcrast))
 
   # read in hotspots
@@ -301,8 +302,7 @@ all_fires <- purrr::map(fire_loop, function(f) {
       # Assign values to grid, using GRID.FIRE as a base raster
       grid.jday <- grid.fire
       grid.jday[!is.na(grid.jday)] <- dob.kriged$var1.pred
-
-      writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_decimal_krig.tif"), overwrite = T)
+      #writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_decimal_krig.tif"), overwrite = T)
       grid.jday <- trunc(grid.jday)
       writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_yday_krig.tif"), overwrite = T)
     }
@@ -312,12 +312,25 @@ all_fires <- purrr::map(fire_loop, function(f) {
 
 # summary of how many fires were processed
 all_fires <- list.files(fs::path(spatialOutDir, "DOB"), full.names = TRUE, recursive = TRUE, pattern = "firearrival_yday_krig.tif")
-# 81 fires processed
+# 182 fires processed
 
 
 
 
 # up to here 
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
