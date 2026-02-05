@@ -182,6 +182,8 @@ levels(BEC_FR)
 #Make a numeric grid for reclassify
 BEC_FRn<-as.numeric(BEC_FR)
 
+  
+
 #data frame of attributes
 FR_df<-data.frame(cats(BEC_FR)) %>%
   mutate(BEC_variant=str_extract(BEC_variant_TopoClass,"^[^_]+")) %>%
@@ -192,8 +194,16 @@ FR_df<-data.frame(cats(BEC_FR)) %>%
 BEC_m<-FR_df %>%
   select(ID,VALUE) %>%
   as.matrix()
+#Area of each polygon
+Tresx<-res(BEC_FRn)[[1]]
+Tresy<-res(BEC_FRn)[[2]]
+BEC_FRnStats<-freq(BEC_FRn) %>%
+  dplyr::rename(ID=value) %>%
+  mutate(area_ha=count*Tresx*Tresy/10000) %>%
+  left_join(FR_df)
 
 HNFR<-classify(BEC_FRn,BEC_m)
+HNFR_stats<-freq(HNFR)
 plot(HNFR)
 writeRaster(HNFR, filename = file.path(spatialOutDir, paste0("HNFR.tif")), overwrite = TRUE)
 
@@ -280,13 +290,4 @@ BEC_FRU_table <- terra::crosstab(FRU_BEC_stack)
 print(BEC_FRU_table)
 write.xlsx(BEC_FRU_table,file.path(dataOutDir, paste0("BEC_FRU_table.xlsx")),overwrite=TRUE) 
 
-# cross tabulate BuMo's BEC with FRU
-BECr_A<-BECr %>%
-  resample(ProvRastT,method='near') %>%
-  crop(vect(AOI_Admin)) %>%
-  mask(vect(AOI_Admin)) 
-FRU_BEC_stack<-c(BECr_A,FRU_Region_BuMo)
-BEC_FRU_table <- terra::crosstab(FRU_BEC_stack)
-print(BEC_FRU_table)
-write.xlsx(BEC_FRU_table,file.path(dataOutDir, paste0("BEC_FRU_table.xlsx")),overwrite=TRUE) 
 
