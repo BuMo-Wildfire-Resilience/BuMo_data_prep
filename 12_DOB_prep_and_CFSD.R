@@ -302,7 +302,7 @@ all_fires <- purrr::map(fire_loop, function(f) {
       # Assign values to grid, using GRID.FIRE as a base raster
       grid.jday <- grid.fire
       grid.jday[!is.na(grid.jday)] <- dob.kriged$var1.pred
-      #writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_decimal_krig.tif"), overwrite = T)
+      writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_decimal_krig.tif"), overwrite = T)
       grid.jday <- trunc(grid.jday)
       writeRaster(grid.jday, fs::path(spatialOutDir, "DOB", f, "firearrival_yday_krig.tif"), overwrite = T)
     }
