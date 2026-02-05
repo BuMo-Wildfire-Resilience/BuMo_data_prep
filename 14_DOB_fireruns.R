@@ -95,5 +95,9 @@ for (i in 1:length(DOB_list)){
   writeRaster(poi_r,fs::path(dob_dir, dobfire, "poi_firerun.tif"),  overwrite = TRUE) 
   
   
+  # add a plot with the 
+  
+  
+  
   }
 }
