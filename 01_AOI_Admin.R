@@ -42,7 +42,7 @@ write_sf(AOI.TSA,file.path(spatialOutDir,'AOI.TSA.gpkg'))
 Gitxsan_admin_watershed<-st_read(file.path(ProvData,'Boundaries/FirstNationsBoundaries/gitxsan_admin_watershed_v2.shp'))
 st_crs(Gitxsan_admin_watershed)<-3005
 write_sf(Gitxsan_admin_watershed,file.path(spatialOutDir,'Gitxsan_admin_watershed.gpkg'))
-AOI.Gitxsan<-Gitxsan_admin_watershed %>%
+AOI.Gitxsan<-st_read(file.path(spatialOutDir,'Gitxsan_admin_watershed.gpkg')) %>%
     dplyr::filter(ADM_NAME %in% c('Suskwa','Babine','Kitseguecla'))
 write_sf(AOI.Gitxsan,file.path(spatialOutDir,'AOI.Gitxsan.gpkg'))
 
@@ -63,7 +63,7 @@ AOI.buffer<-AOI.TSA %>%
   mutate(AOI=1) %>%
   group_by(AOI) %>%
   dplyr::summarize() %>%
-  #st_buffer(dist=100000) %>%
+  st_buffer(dist=50000) %>%
   dplyr::select(AOI)
 #Add in Skeena for final AOI
 AOI_Admin<-AOI.buffer #%>%
@@ -75,7 +75,7 @@ AOI_Admin <- fill_holes(AOI.buffer, threshold = area_thresh)
 
 #mapview results
  mapview(AOI_Admin,col.regions='yellow')+
-  mapview(AOI.Skeena,col.regions='red')+ 
+  #mapview(AOI.Skeena,col.regions='red')+ 
   mapview(AOI.Nations,col.regions='green')+
   mapview(AOI.TSA,col.regions= 'purple')
  

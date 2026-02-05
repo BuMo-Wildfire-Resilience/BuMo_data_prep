@@ -36,6 +36,7 @@ st_crs(bc_tsa)<-3005
 write_sf(bc_tsa, file.path(spatialOutDir,"bc_tsa.gpkg"))
 AOI.TSA<-bc_tsa %>%
   dplyr::filter(TSA_NUMBER_DESCRIPTION %in% c('Bulkley TSA','Morice TSA','Lakes TSA'))
+write_sf(AOI.TSA,file.path(spatialOutDir,'AOI.TSA.gpkg'))
 #Gitxsan watersheds that touch the TSAs
 Gitxsan_admin_watershed<-st_read(file.path(ProvData,'Boundaries/FirstNationsBoundaries/gitxsan_admin_watershed_v2.shp'))
 st_crs(Gitxsan_admin_watershed)<-3005
@@ -56,19 +57,28 @@ AOI.Skeena<-Mjr_Wshd %>%
   dplyr::filter(MAJOR_WATERSHED_SYSTEM %in% c('Skeena River'))
 
 #Combine TSA, Cheslatta, Gitxsan AOIs and buffer by 100m
-AOI.buffer<-AOI.TSA %>%
+AOI.buffer100km<-AOI.TSA %>%
   st_union(AOI.Nations) %>%
   mutate(AOI=1) %>%
   group_by(AOI) %>%
   dplyr::summarize() %>%
+  #st_buffer(dist=50000) %>%
   st_buffer(dist=100000) %>%
   dplyr::select(AOI)
-#Add in Skeena for final AOI
-AOI<-AOI.buffer %>%
-  st_union(AOI.Skeena)
+#Add in Skeena for final AOI for 100km only
+AOI_100km<-AOI.buffer100km %>%
+  st_union(AOI.Skeena) %>%
+  dplyr::select(AOI)
+write_sf(AOI_100km, file.path(spatialOutDir,"AOI_100km.gpkg"))
+st_write(AOI_100km, file.path(spatialOutDir,"AOI_100km.shp"))
+AOI_50km<-AOI.buffer50km %>%
+  dplyr::select(AOI)
+write_sf(AOI_50km, file.path(spatialOutDir,"AOI_50km.gpkg"))
+write_sf(AOI_50km, file.path(spatialOutDir,"AOI_50km.shp"))
 
 #mapview results
- mapview(AOI.buffer,col.regions='yellow')+
+mapview(AOI_100km,col.regions='blue')+
+  mapview(AOI_50km,col.regions='yellow')+
   mapview(AOI.Skeena,col.regions='red')+ 
   mapview(AOI.Nations,col.regions='green')+
   mapview(AOI.TSA,col.regions= 'purple')
@@ -80,5 +90,10 @@ write_sf(AOI, file.path(spatialOutDir,"AOI.shp"))
   FN_statement_of_intent<-st_read(file.path(spatialOutDir,"FN_statement_of_intent.gpkg"))
   bc_tsa<-st_read(file.path(spatialOutDir,"bc_tsa.gpkg"))
   AOI<-st_read(file.path(spatialOutDir,"AOI.gpkg"))
+  AOI.TSA<-st_read(file.path(spatialOutDir,'AOI.TSA.gpkg'))
+  AOI.Nations<-st_read(file.path(spatialOutDir,'AOI.Nations.gpkg'))
+  AOI_50km<-st_read(file.path(spatialOutDir,'AOI_50km.gpkg'))
+  
+  mapview(AOI)
 }
 

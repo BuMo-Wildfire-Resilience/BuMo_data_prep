@@ -32,6 +32,7 @@ library(stringr)
 library(matrixStats)
 library(purrr)
 library(datawizard)
+library(gtools)
 
 options(scipen=999)
 options(warn = 1)
@@ -44,14 +45,14 @@ control.compute=list(save.memory=TRUE)
 #remotes::install_github("bcgov/climr", force=TRUE)
 #library(climr)
 
-DataDir <- '../../../Bulkley Morice Wildfire Resilience Pilot/Analysis/BuMo_data_prep/data'
-DataDir<-'data'
+DataDir <- '../../../BuMo Analysis/BuMo_data_prep/data'
+#DataDir<-'data'
 dir.create(DataDir, showWarnings = FALSE)
 spatialDir <- file.path(DataDir,'spatial')
 dir.create(spatialDir, showWarnings = FALSE)
 
-OutDir <- '../../../Bulkley Morice Wildfire Resilience Pilot/Analysis/BuMo_data_prep/out'
-OutDir<-'out'
+OutDir <- '../../../BuMo Analysis/BuMo_data_prep/out'
+#OutDir<-'out'
 dir.create(file.path(OutDir), showWarnings = FALSE)
 dataOutDir <- file.path(OutDir,'data')
 dir.create(file.path(dataOutDir), showWarnings = FALSE)

@@ -18,7 +18,6 @@ get_data_fn <- function(BC_DC_layer, layer_name, AOI) {
   write_sf(df, file.path(spatialOutDir, paste0(layer_name, ".gpkg")), delete_layer = TRUE)
 }
 
-
 # data loading functions with internal intersect for efficiency
 get_data_fn_clip <- function(BC_DC_layer, layer_name, AOI) {
   df <- bcdata::bcdc_query_geodata(BC_DC_layer) |>
@@ -29,7 +28,6 @@ get_data_fn_clip <- function(BC_DC_layer, layer_name, AOI) {
   st_crs(df) <- 3005
   write_sf(df, file.path(spatialOutDir, paste0(layer_name, ".gpkg")), delete_layer = TRUE)
 }
-
 
 gdbFn <- function(gbd_in, layernm, outN) {
   df_in <- read_sf(gbd_in, layer = layernm)
@@ -65,7 +63,7 @@ if (!file.exists(BCr_file)) {
   writeRaster(BCr, filename = BCr_file, format = "GTiff", overwrite = TRUE)
   writeRaster(ProvRast, filename = file.path(spatialOutDir, "ProvRast"), format = "GTiff", overwrite = TRUE)
 } else {
-  BCr <- raster(BCr_file)
+  BCr <- rast(file.path(spatialOutDir, "BCr.tif"))
   ProvRast <- raster(file.path(spatialOutDir, "ProvRast.tif"))
   ProvRastT <- rast(file.path(spatialOutDir, "ProvRast.tif"))
   BCr_S <- read_stars(file.path(spatialOutDir, "BCr_S.tif"))
@@ -154,8 +152,27 @@ if (!file.exists(BEC_file)) {
     layer_options = "OVERWRITE=true",
     append = FALSE, delete_dsn = TRUE
   )
+#Group BEC in 
+  #Read in LUT for BEC group
+  BECgroupSheets<- excel_sheets(file.path(DataDir,'BECv11_SubzoneVariant_GroupsVESI_V6.xlsx'))
+  BECgroupSheetsIn<-read_excel(file.path(DataDir,'BECv11_SubzoneVariant_GroupsVESI_V6.xlsx'),
+                               sheet = BECgroupSheets[2])
+  #Generate a LUT
+  BECGroup_LUT<-data.frame(VARns=BECgroupSheetsIn$`BEC Unit`,
+                           BECgroup=BECgroupSheetsIn$GROUP, stringsAsFactors = FALSE)
+  #Attach to sf
+  BEC_BuMo_g<- BEC_BuMo %>%
+    mutate(VARns=MAP_LABEL) %>%
+    left_join(BECGroup_LUT) %>%
+    mutate(sumbec=1) %>%
+    dplyr::group_by(BECgroup) %>%
+    dplyr::summarise(nbecs = sum(sumbec)) %>%
+    ungroup()
+  mapview(BEC_BuMo_g)
+  write_sf(BEC_BuMo_g, file.path(spatialOutDir,"BEC_BuMo_g.gpkg"))
 } else {
   BEC_BuMo <- read_sf(file.path(spatialOutDir, "BEC_BuMo.gpkg"))
+  BEC_BuMo_g <- read_sf(file.path(spatialOutDir, "BEC_BuMo_g.gpkg"))
 }
 
 # Additional Fire related files
@@ -200,10 +217,10 @@ if (!file.exists(burn_file)) {
   #write_sf(HumanFireDensity, file.path(spatialOutDir, "HumanFireDensity.gpkg"), layer_options = "OVERWRITE=true", append = FALSE, delete_dsn = TRUE)
   HumanDensity <- get_data_fn_clip("WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_HMN_FIRE_ST_DNSTY_SP", "HumanFireDensity", AOI)
   
-  #FireHeadDensityP <- get_data_fn("WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_HEAD_FIRE_INTNSTY_SP", "FireHeadDensityP")
-  #FireHeadDensity <- FireHeadDensityP %>% st_intersection(AOI)
+  #FireHeadIntensityP <- get_data_fn("WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_HEAD_FIRE_INTNSTY_SP", "FireHeadIntensityP")
+  #FireHeadIntensity <- FireHeadIntensityP %>% st_intersection(AOI)
   #write_sf(FireHeadDensity, file.path(spatialOutDir, "FireHeadDensity.gpkg"), layer_options = "OVERWRITE=true", append = FALSE, delete_dsn = TRUE)
-  FireHeadDensity <- get_data_fn_clip("WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_HEAD_FIRE_INTNSTY_SP", "FireHeadDensity", AOI)
+  FireHeadIntensity <- get_data_fn_clip("WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_HEAD_FIRE_INTNSTY_SP", "FireHeadIntensity", AOI)
   
   #FireDensityP <- get_data_fn("WHSE_LAND_AND_NATURAL_RESOURCE.PROT_PSTA_FIRE_STRT_DENSITY_SP", "FireDensityP")
   #FireDensity <- FireDensityP %>% st_intersection(AOI)
@@ -235,7 +252,10 @@ if (!file.exists(burn_file)) {
     bcdata::collect()
 
   st_write(HistoricFire, fs::path(spatialOutDir, "HistoricFire.gpkg"), append = FALSE)
-  
+ 
+  WUI_Buffer <- get_data_fn_clip("WHSE_LAND_AND_NATURAL_RESOURCE.PROT_WUI_HMN_INTRFCE_BUFFR_SP", "WUI_Buffer", AOI)
+  WUI_RiskClass <- get_data_fn_clip("WHSE_LAND_AND_NATURAL_RESOURCE.PROT_WUI_RISK_CLASS_SP", "WUI_RiskClass", AOI)
+
   
   } else {
   BurnSeverity <- st_read(file.path(spatialOutDir, "BurnSeverity.gpkg"))
@@ -293,8 +313,8 @@ if (!file.exists(water_file)) {
   FWA_wetlands <- st_read(file.path(spatialOutDir, "FWA_wetlands.gpkg"))
 }
 
-
-
+#PODS
+DataDir
 
 
 # extract the National Burned Area Composite NBAC datasets
