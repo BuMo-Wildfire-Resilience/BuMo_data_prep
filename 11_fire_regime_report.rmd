@@ -1,0 +1,101 @@
+---
+title: "Fire Regime Summary"
+output: html_document
+date: "2026-02-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Fire Regime types 
+
+This report outlines a summary of fire regime types across the province and across the BUMO Study area. For this analysis we used all historic fire perimeters from the bcdata catalogue (1917 - 2025). The fire regime was built based on methodology documented by Morgan et al. Analysis details are found [here](https://github.com/BuMo-Wildfire-Resilience/BuMo_data_prep/blob/main/UBC_FireRegime.R)
+
+
+
+Using the historic fire perimeters, we can plot the number of fires within the study area (aoi) + plus the buffered study area (using a expanded perimeter of 50km). 
+
+
+Using the historic fire perimeters, we can plot the number of fires within the study area (aoi) + plus the buffered study area (using a expanded perimeter of 50km). 
+
+
+```{r input information , echo = FALSE, warning = FALSE, message = FALSE}
+library(sf)
+library(terra)
+library(dplyr)
+library(ggplot2)
+library(openxlsx)
+library(knitr)
+
+DataDir <- 'data'
+spatialDir <- fs::path(DataDir,'spatial')
+
+OutDir <- 'out'
+dataOutDir <- file.path(OutDir,'data')
+spatialOutDir <- file.path(OutDir,'spatial')
+
+#aoi <-  st_read(file.path(spatialDir, "AOI_50k.gpkg"))
+aoi <- st_read(file.path(spatialOutDir, "AOI_Admin.gpkg"), quiet = TRUE)
+
+# read in the key 
+key <- read.xlsx(fs::path(spatialDir, "fire_regime", "BUMO_regimeT.xlsx"))
+key <- key |> 
+  mutate(MAP_LABEL = BEC_variant)
+
+```
+
+We can review the proportion of the province in which the fire regimes are located. 
+
+The table below shows the area of each fire regime type across the province and the proportion of each fire regime as a percentage of total area. The NA value represents those BEC units which are not assigned to a BUMO_regime, likley as they do not occur within the BUMO study area. 
+
+```{r, echo = FALSE}
+
+#bec_sum <- read.csv( fs::path(spatialDir, "fire_regime","bec_fr_total_ha_BC.csv"))
+fr_sum <- read.csv(fs::path(spatialDir, "fire_regime","fr_total_ha_BC.csv")) |> 
+  select(-X) |> 
+  rename("fr_pc_bc" = fr_pc_bumo) |> 
+  select(BUMO_regime, fr_area_ha, total_ha, fr_pc_bc)
+
+knitr::kable(fr_sum)
+
+#fr_bumo_sum <- read.csv(fs::path(spatialDir, "fire_regime","fr_total_ha_bumo.csv"))
+
+```
+
+The table below shows the area within the BUMO study area with the same metrics
+
+```{r, echo = FALSE}
+
+fr_bumo_sum <- read.csv(fs::path(spatialDir, "fire_regime","fr_total_ha_bumo.csv"))|> 
+  select(-X) 
+
+knitr::kable(fr_bumo_sum)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Appendices 
+
+The key to distinguish fire regimes based on BEC zones are shown in the table below. 
+
+```{r fire_regime key, echo=FALSE}
+knitr::kable(key)
+
+```
+
+
