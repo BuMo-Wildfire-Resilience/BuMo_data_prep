@@ -9,16 +9,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-## Fire Regime types 
+## 1. Fire Regime types 
 
 This report outlines a summary of fire regime types across the province and across the BUMO Study area. For this analysis we used all historic fire perimeters from the bcdata catalogue (1917 - 2025). The fire regime was built based on methodology documented by Morgan et al. Analysis details are found [here](https://github.com/BuMo-Wildfire-Resilience/BuMo_data_prep/blob/main/UBC_FireRegime.R)
-
-
-
-Using the historic fire perimeters, we can plot the number of fires within the study area (aoi) + plus the buffered study area (using a expanded perimeter of 50km). 
-
-
-Using the historic fire perimeters, we can plot the number of fires within the study area (aoi) + plus the buffered study area (using a expanded perimeter of 50km). 
 
 
 ```{r input information , echo = FALSE, warning = FALSE, message = FALSE}
@@ -55,7 +48,7 @@ The table below shows the area of each fire regime type across the province and 
 #bec_sum <- read.csv( fs::path(spatialDir, "fire_regime","bec_fr_total_ha_BC.csv"))
 fr_sum <- read.csv(fs::path(spatialDir, "fire_regime","fr_total_ha_BC.csv")) |> 
   select(-X) |> 
-  rename("fr_pc_bc" = fr_pc_bumo) |> 
+  #rename("fr_pc_bc" = fr_pc_bumo) |> 
   select(BUMO_regime, fr_area_ha, total_ha, fr_pc_bc)
 
 knitr::kable(fr_sum)
@@ -64,7 +57,7 @@ knitr::kable(fr_sum)
 
 ```
 
-The table below shows the area within the BUMO study area with the same metrics
+The table below shows the area and percentage of each fire regime type within the BUMO study area. 
 
 ```{r, echo = FALSE}
 
@@ -75,6 +68,43 @@ knitr::kable(fr_bumo_sum)
 
 ```
 
+
+## 2. Fires across BC 
+
+This plot shows the total area burnt across BC for all fire years, the number above each point indicates the total number of fires within that year. Note some early records are not accurate for fire numbers. 
+
+```{r pressure, echo=FALSE, fig.cap="", out.width = '90%'}
+p1 <- fs::path(spatialDir, "fire_regime","1_fires_across_bc.jpg")
+knitr::include_graphics(p1)
+
+```
+
+
+We can review this based on the total area burnt (figure 2), or by the area in which a fire regime burnt relative to its total area across the province (figure 3)
+
+Across the province we can determine what proportion of area burnt was made up of each fire regime types.
+
+```{r plot2, echo=FALSE, fig.cap="Figure 2", out.width = '90%'}
+p2 <- fs::path(spatialDir, "fire_regime","2_fire_fr_pc_across_bc.jpg")
+knitr::include_graphics(p2)
+
+```
+
+
+
+```{r plot2a, echo=FALSE, fig.cap="Figure 3", out.width = '90%'}
+p2a <- fs::path(spatialDir, "fire_regime","2a_fire_fr_pc__of_total_fr_across_bc.jpg")
+knitr::include_graphics(p2a)
+
+```
+
+We can also review the proportions of the fire regimes burn within the BUMO study area 
+
+
+```{r plot 4, echo=FALSE, fig.cap="Figure 4", out.width = '90%'}
+p3 <- fs::path(spatialDir, "fire_regime","3_fire_fr_pc_across_bumo.jpg")
+knitr::include_graphics(p3)
+```
 
 
 

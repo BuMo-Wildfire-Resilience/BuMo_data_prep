@@ -65,7 +65,7 @@ fr_sum <- bec_sum |>
   summarise(fr_area_ha = sum(bec_area_ha))|> 
   mutate(total_ha = sum(fr_area_ha)) |> 
   rowwise() |> 
-  mutate(fr_pc_bumo = round((fr_area_ha/total_ha)*100,1))
+  mutate(fr_pc_bc = round((fr_area_ha/total_ha)*100,1))
           
 
 write.csv(bec_sum, fs::path(spatialDir, "fire_regime","bec_fr_total_ha_BC.csv"))
@@ -87,7 +87,6 @@ bec_bumo_sum <- bec_bumo |>
   st_drop_geometry() |> 
   group_by(MAP_LABEL, BUMO_regime) |> 
   summarise(bec_area_ha_bumo = sum(bec_total_area_ha))
-
 
 fr_bumo_sum <- bec_bumo_sum |> 
   group_by(BUMO_regime) |> 
@@ -132,7 +131,6 @@ ggsave(p1,  filename = fs::path(spatialDir, "fire_regime","1_fires_across_bc.jpg
 
 
 # fires within the Bumo Area 
-
 
 # summary of fires in total (not looking at BEC zones)
 sumb <- fires |>  
@@ -193,9 +191,8 @@ st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw.gpkg"), app
 
 # convert to data frame
 ffdf <- st_drop_geometry(fires_bec)
-ffdf <- ffdf |> select(-FIRE_NUMBER, -area , -OBJECTID)
+ffdf <- ffdf |> select(-FIRE_NUMBER, -OBJECTID)
 ffdf <- left_join(ffdf, sum_ha)
-
 
 ffdf <- ffdf |> 
   select(FIRE_YEAR, fire_yr_ha, fire_n, MAP_LABEL, bec_area_burnt, BUMO_regime, FIRE_SIZE_HECTARES) |> 
@@ -203,9 +200,12 @@ ffdf <- ffdf |>
   summarise(bec_area_burnt_sum = sum(bec_area_burnt, na.rm = T)) |> 
   ungroup()
 
+ffdf <- left_join(ffdf, bec_sum)
+
 ffdf <- ffdf |> 
   rowwise() |> 
-  mutate(bec_pc_burnt_by_yr = round( 100* (bec_area_burnt_sum/fire_yr_ha),0))  
+  mutate(bec_pc_burnt_by_yr = round( 100* (bec_area_burnt_sum/fire_yr_ha),0))  |> 
+  mutate(bec_pc_burnt_by_total_bec_area = round( 100* (bec_area_burnt_sum/bec_area_ha),2))  
 
 
 # summary by fr
@@ -214,13 +214,16 @@ ffdf_fr <- ffdf |>
   select(FIRE_YEAR, fire_yr_ha, fire_n, BUMO_regime, bec_area_burnt_sum) |> 
   group_by(FIRE_YEAR, fire_yr_ha, fire_n, BUMO_regime) |> 
   summarise(fr_area_burnt_sum = sum(bec_area_burnt_sum, na.rm = T)) |> 
-  ungroup() |> 
+  ungroup() 
+  
+ffdf_fr <- left_join(ffdf_fr, fr_sum) |> 
+  select(-fr_pc_bc) |> 
   rowwise() |> 
-  mutate(fr_pc_burnt_by_yr = round( 100* (fr_area_burnt_sum/fire_yr_ha),0))  
-
+  mutate(fr_pc_burnt_by_yr = round( 100* (fr_area_burnt_sum/fire_yr_ha),0))  |> 
+  mutate(fr_pc_burnt_by_total_fr_area = round( 100* (fr_area_burnt_sum/fr_area_ha),2)) 
 
 write.csv(ffdf, fs::path(spatialDir, "fire_regime","bec_fr_fire_ha_BC.csv"))
-write.csv(ffdf_fr, fs::path(spatialDir, "fire_regime","fr_fire_ha_bumo.csv"))
+write.csv(ffdf_fr, fs::path(spatialDir, "fire_regime","fr_fire_ha_BC.csv"))
 
 
 
@@ -235,7 +238,17 @@ p2
 
 ggsave(p2,  filename = fs::path(spatialDir, "fire_regime","2_fire_fr_pc_across_bc.jpg"), width = 40, height = 30, units = "cm")
 
+#ffdf_fr
 
+# plot the number of fire and total area with n() across the province
+p2a <- ggplot(ffdf_fr, aes(x = FIRE_YEAR, y = fr_pc_burnt_by_total_fr_area, fill = as.factor(BUMO_regime))) +
+  geom_bar(position="stack", stat="identity")+
+  #geom_text(aes(x = FIRE_YEAR, label = fire_n), vjust = -1, colour = "slategrey")+
+  theme_minimal()+
+  labs(title = "Percentage of total fire regime (by area) was burnt across BC", x = "Fire year", y = "% of fires within area of each fire regime")
+p2a <- p2a  + guides(fill=guide_legend(title="Fire Regime"))
+p2a
+ggsave(p2a,  filename = fs::path(spatialDir, "fire_regime","2a_fire_fr_pc__of_total_fr_across_bc.jpg"), width = 40, height = 30, units = "cm")
 
 
 
@@ -247,7 +260,7 @@ fires_bec_bumo <- fires_bec |>
 
 # convert to data frame
 ffdfb <- st_drop_geometry(fires_bec_bumo)
-ffdfb <- ffdfb |> select(-FIRE_NUMBER, -area , -OBJECTID, -AOI)
+ffdfb <- ffdfb |> select(-FIRE_NUMBER, -OBJECTID, -AOI)
 ffdfb <- left_join(ffdfb, sumb_ha)
 
 ffdfb <- ffdfb |> 
@@ -272,18 +285,29 @@ ffdfb_fr <- ffdfb |>
   mutate(fr_bumo_pc_burnt_by_yr = round( 100* (fr_area_burnt_sum/fire_bumo_yr_ha),0))  
 
 
-write.csv(ffdf, fs::path(spatialDir, "fire_regime","bec_fr_fire_ha_BC.csv"))
-write.csv(ffdf_fr, fs::path(spatialDir, "fire_regime","fr_fire_ha_bumo.csv"))
+ffdfb_fr <- left_join(ffdfb_fr, fr_bumo_sum) |> 
+  rowwise() |> 
+  mutate(fr_pc_burnt_by_yr_bumo = round( 100* (fr_area_burnt_sum/fire_bumo_yr_ha),2))  |> 
+  mutate(fr_pc_burnt_by_total_fr_area_bumo = round( 100* (fr_area_burnt_sum/fr_area_ha_bumo),2)) 
+
+
+write.csv(ffdfb, fs::path(spatialDir, "fire_regime","bec_fr_fire_ha_bumo.csv"))
+write.csv(ffdfb_fr, fs::path(spatialDir, "fire_regime","fr_fire_ha_bumo.csv"))
 
 
 
 # plot the number of fire and total area with n() across the province
-p3 <- ggplot(ffdfb_fr, aes(x = FIRE_YEAR, y = fr_bumo_pc_burnt_by_yr, fill = as.factor(BUMO_regime))) +
-  geom_bar(position="stack", stat="identity")+
-  #geom_text(aes(x = FIRE_YEAR, label = fire_n), vjust = -1, colour = "slategrey")+
-  theme_minimal()+
-  labs(title = "Percentage of fire footprint by fire regime type across Bumo AOI", x = "Fire year", y = "% of fires within the given year")
-p3 <- p3  + guides(fill=guide_legend(title="Fire Regime"))
+p3 <- ggplot(ffdfb_fr, aes(x = FIRE_YEAR, y = fr_pc_burnt_by_total_fr_area_bumo, fill = as.factor(BUMO_regime))) +
+  geom_point(aes(colour = factor(BUMO_regime)))+
+  geom_line(aes(colour = factor(BUMO_regime)), show.legend = FALSE)+
+  #geom_bar(position="stack", stat="identity")+
+  #geom_text(aes(x = FIRE_YEAR, label = fire_bumo_n), vjust = -10, colour = "slategrey")+
+  facet_wrap(~BUMO_regime)+
+  #theme_minimal(legend.position = "none")+
+  labs(title = "Percentage of fire regime type burnt per yr relative to proportion area within BUMO AOI", x = "Fire year", y = "% of fires within the given year")+
+  theme(legend.position = "none")
+  
+#p3 <- p3  + guides(fill=guide_legend(title="Fire Regime"))
 p3
 
 ggsave(p3,  filename = fs::path(spatialDir, "fire_regime","3_fire_fr_pc_across_bumo.jpg"), width = 40, height = 30, units = "cm")
@@ -292,35 +316,31 @@ ggsave(p3,  filename = fs::path(spatialDir, "fire_regime","3_fire_fr_pc_across_b
 
 
 
+###############################################################################################
+## Calculate the averages 
 
-# 
-# type_yr <- ffdf |> 
-#   group_by(FIRE_YEAR, BUMO_regime) |> 
-#   reframe(FIRE_SIZE_HECTARES, n())
-# 
-# 
-# ffdf |>
-#   group_by(FIRE_YEAR, BUMO_regime) |> 
-#   summarise(Total_fire_ha = sum(FIRE_SIZE_HECTARES), 
-#             n_fires = n(), 
-#             regime_fire_ha = sum(bec_area_burnt))
-# 
-# 
-# 
-# ggplot(fires_bec, aes(y = area_ha, x = NATURAL_DISTURBANCE, colour = fire_size)) +
-#   geom_point() +
-#   theme_minimal()
-# 
-# 
-# fires_bec_top <- fires_bec |> 
-#   group_by(FIRE_NUMBER) |> 
-#   slice_max(bec_area_burnt)
-# 
-# ggplot(fires_bec_top, aes(y = area_ha, x = NATURAL_DISTURBANCE, colour = fire_size)) +
-#   geom_point() +
-#   theme_minimal()
-# 
-# 
+
+# decadal averages 
+
+ffdfb_fr <- read.csv(fs::path(spatialDir, "fire_regime","fr_fire_ha_bumo.csv"))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
