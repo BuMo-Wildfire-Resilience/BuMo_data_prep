@@ -230,6 +230,7 @@ write.csv(ffdf_fr, fs::path(spatialDir, "fire_regime","fr_fire_ha_BC.csv"))
 # plot the number of fire and total area with n() across the province
 p2 <- ggplot(ffdf_fr, aes(x = FIRE_YEAR, y = fr_pc_burnt_by_yr, fill = as.factor(BUMO_regime))) +
   geom_bar(position="stack", stat="identity")+
+  scale_fill_discrete("set1",na.value="lightgrey")+
   #geom_text(aes(x = FIRE_YEAR, label = fire_n), vjust = -1, colour = "slategrey")+
   theme_minimal()+
   labs(title = "Proportion of fire footprint by fire regime type across BC", x = "Fire year", y = "% of fires within the given year")
@@ -319,24 +320,74 @@ ggsave(p3,  filename = fs::path(spatialDir, "fire_regime","3_fire_fr_pc_across_b
 ###############################################################################################
 ## Calculate the averages 
 
-
+install.packages("zoo")
+library(zoo)
+library("xts")
 # decadal averages 
 
 ffdfb_fr <- read.csv(fs::path(spatialDir, "fire_regime","fr_fire_ha_bumo.csv"))
 
+ufr <- unique(ffdfb_fr$BUMO_regime)
+
+out <- purrr::map(ufr, function(x){
+  
+  #x <- ufr[1]
+  sub <- ffdfb_fr |> 
+    filter(BUMO_regime == x)
+  
+  sub <- sub |>  select(X, BUMO_regime,FIRE_YEAR, fr_pc_burnt_by_total_fr_area_bumo)
+  
+  yr10 <- rollmean(sub$fr_pc_burnt_by_total_fr_area_bumo, k = 10, align = "center", fill = NA)
+  yr30 <- rollmean(sub$fr_pc_burnt_by_total_fr_area_bumo, k = 30, align = "center", fill = NA)
+  
+  sub <- sub |> mutate( fr10 = yr10, fr30 = yr30)
+  
+}) |> bind_rows()
+
+
+final  <- left_join(ffdfb_fr, out)
+final$BUMO_regime <-as.factor(final$BUMO_regime)
 
 
 
+# plot the number of fire and total area with n() across the province
+p4 <- ggplot(final, aes(x = FIRE_YEAR, y = fr10, fill = BUMO_regime)) +
+  geom_point(aes(colour = BUMO_regime), size = 0.8)+
+  geom_line(aes(colour = BUMO_regime), show.legend = FALSE)+
+  #geom_bar(position="stack", stat="identity")+
+  #geom_text(aes(x = FIRE_YEAR, label = fire_bumo_n), vjust = -10, colour = "slategrey")+
+  facet_wrap(~BUMO_regime, scale = "free_y")+
+  #theme_minimal(legend.position = "none")+
+  labs(title = "Percentage of fire regime burnt per area within BUMO AOI (10yr rolling ave)", x = "Fire year", y = "% of fires within the given year with 10yr ave")+
+  #theme(legend.position = "none")
+  guides(fill=guide_legend(title="Fire Regime"))+
+   guides(fill = FALSE)#+
+  #theme_minimal()
+
+    p4
+
+ggsave(p4,  filename = fs::path(spatialDir, "fire_regime","4_fire_fr_pc_across_bumo_10yr.jpg"), width = 40, height = 30, units = "cm")
 
 
+# 30 yr average 
 
+# plot the number of fire and total area with n() across the province
+p5 <- ggplot(final, aes(x = FIRE_YEAR, y = fr30, fill = BUMO_regime)) +
+  geom_point(aes(colour = BUMO_regime), size = 0.8)+
+  geom_line(aes(colour = BUMO_regime), show.legend = FALSE)+
+  #geom_bar(position="stack", stat="identity")+
+  #geom_text(aes(x = FIRE_YEAR, label = fire_bumo_n), vjust = -10, colour = "slategrey")+
+  #facet_wrap(~BUMO_regime, scale = "free_y")+
+  #theme_minimal(legend.position = "none")+
+  labs(title = "Percentage of fire regime burnt per area within BUMO AOI (30yr rolling ave)", x = "Fire year", y = "% of fires within the given year with 10yr ave")+
+  #theme(legend.position = "none")
+  guides(fill=guide_legend(title="Fire Regime"))+
+  guides(fill = FALSE)#+
+  #theme_minimal()
 
+p5
 
-
-
-
-
-
+ggsave(p5,  filename = fs::path(spatialDir, "fire_regime","5_fire_fr_pc_across_bumo_30yr.jpg"), width = 40, height = 30, units = "cm")
 
 
 
