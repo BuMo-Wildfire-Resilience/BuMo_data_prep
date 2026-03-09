@@ -394,6 +394,98 @@ ggsave(p5,  filename = fs::path(spatialDir, "fire_regime","5_fire_fr_pc_across_b
 
 
 
+##############################################################################################3
+
+## Request for FLP / fire history 
+
+
+library(sf)
+library(terra)
+library(dplyr)
+library(ggplot2)
+library(openxlsx)
+
+DataDir <- 'data'
+spatialDir <- fs::path(DataDir,'spatial')
+
+OutDir <- 'out'
+dataOutDir <- file.path(OutDir,'data')
+spatialOutDir <- file.path(OutDir,'spatial')
+
+aoi <- st_read(file.path(spatialOutDir, "Bulkley_Morice_TSA.gpkg"))
+
+aoi_area <- st_union(aoi) |> 
+  st_area(geometry)
+
+aoi_area_ha = as.numeric(aoi_area) * 0.0001
+
+# download the historicfire and BC - all fires
+fires <- bcdata::bcdc_query_geodata("22c7cb44-1463-48f7-8e47-88857f207702") |>
+  bcdata::select(FIRE_NUMBER, FIRE_YEAR, FIRE_SIZE_HECTARES)|>
+  bcdata::collect()
+
+# download the 2025 fire season 
+fires25 <- bcdata::bcdc_query_geodata("cdfc2d7b-c046-4bf0-90ac-4897232619e1") |>
+  bcdata::select(FIRE_NUMBER, FIRE_YEAR, FIRE_SIZE_HECTARES)|>
+  bcdata::collect()
+
+fires <- bind_rows(fires, fires25)
+
+fires_df <- fires |> st_drop_geometry() |> 
+  group_by(FIRE_YEAR) |> 
+  summarise(n = n())
+
+# intersect with FLP area
+
+
+fa <- st_intersection( fires, aoi) |> 
+  select(FIRE_YEAR, FIRE_SIZE_HECTARES)
+
+fa <- fa |> 
+  mutate(aoi_area = st_area(geometry)) |> 
+  rowwise() |> 
+  mutate(aoi_ha = as.numeric(aoi_area * 0.0001))
+
+fa_df <- fa |> 
+  st_drop_geometry() |> 
+  select(FIRE_YEAR, FIRE_SIZE_HECTARES, aoi_ha) 
+
+
+fr_yr <- fa_df |> 
+  group_by(FIRE_YEAR) |> 
+  summarise(fr_area_ha = round(sum(aoi_ha),1)) |> 
+  mutate(total_ha = round(aoi_area_ha,1)) |> 
+  rowwise() |> 
+  mutate(fr_per_flp_area = round((fr_area_ha/total_ha*100),3))
+
+
+write.csv(fr_yr, fs::path(spatialDir, "fire_regime","fire_yr_FLP.csv"))
+
+
+# plot the number of fire and percent area 
+p5 <- ggplot(fr_yr, aes(x = FIRE_YEAR, y = fr_per_flp_area)) +
+  geom_point(size = 0.8)+
+  geom_line( show.legend = FALSE)+
+  scale_x_continuous(breaks= seq(1915,2028,by=5), 
+                     labels = seq(1915, 2028, by=5),
+                     limits = c(1918,2028), expand = c(0,0)) +
+  labs(title = "Fire area burnt per year as a percent of Bulkley-Morice TSAs", x = "Fire year", y = "% of total area burnt")+
+theme_bw()
+
+p5
+
+
+# plot area burnt  and total tsa area
+p6 <- ggplot(fr_yr, aes(x = FIRE_YEAR, y = fr_area_ha)) +
+  geom_point(size = 0.8)+
+  geom_line( show.legend = FALSE)+
+  scale_x_continuous(breaks= seq(1915,2028,by=5), 
+                     labels = seq(1915, 2028, by=5),
+                     limits = c(1918,2028), expand = c(0,0)) +
+  labs(title = "Fire area burnt per year (ha) of Bulkley-Morice TSAs", x = "Fire year", y = "total area (ha) burnt")+
+  theme_bw()
+
+p6
 
 
   
