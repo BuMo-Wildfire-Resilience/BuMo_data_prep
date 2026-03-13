@@ -475,6 +475,20 @@ theme_bw()
 p5
 
 
+
+# plot the number of fire and percent area 
+p5b <- ggplot(fr_yr, aes(x = FIRE_YEAR, y = fr_per_flp_area)) +
+  geom_col()+
+  #geom_line( show.legend = FALSE)+
+  scale_x_continuous(breaks= seq(1915,2028,by=5), 
+                     labels = seq(1915, 2028, by=5),
+                     limits = c(1918,2028), expand = c(0,0)) +
+  labs(title = "Fire area burnt per year as a percent of Bulkley-Morice TSAs", x = "Fire year", y = "% of total area burnt")+
+  theme_bw()
+
+p5b
+
+
 # plot area burnt  and total tsa area
 p6 <- ggplot(fr_yr, aes(x = FIRE_YEAR, y = fr_area_ha)) +
   geom_point(size = 0.8)+
@@ -487,5 +501,16 @@ p6 <- ggplot(fr_yr, aes(x = FIRE_YEAR, y = fr_area_ha)) +
 
 p6
 
+# plot area burnt  and total tsa area
+p6b <- ggplot(fr_yr, aes(x = FIRE_YEAR, y = fr_area_ha)) +
+  geom_col()+
+  #geom_line( show.legend = FALSE)+
+  scale_x_continuous(breaks= seq(1915,2028,by=5), 
+                     labels = seq(1915, 2028, by=5),
+                     limits = c(1918,2028), expand = c(0,0)) +
+  labs(title = "Fire area burnt per year (ha) of Bulkley-Morice TSAs", x = "Fire year", y = "total area (ha) burnt")+
+  theme_bw()
+
+p6b
 
   
