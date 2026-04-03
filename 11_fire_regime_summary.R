@@ -95,7 +95,6 @@ firesaoi <- fires |>
   st_intersection(aoi) |> 
   select(-AOI)
 
-
 # filter fires by target BEC zones 
 fires_bec <- firesaoi |> 
   st_intersection(bec) 
@@ -113,7 +112,11 @@ fires_bec <- fires_bec  |>
   select(c( -area))
 
 st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw.gpkg"), append = FALSE)
+st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw.shp"), append = FALSE)
 
+fires_bec_csv <- fires_bec |> 
+  st_drop_geometry()
+write.csv(fires_bec_csv, fs::path(spatialDir, "fire_regime", "fire_bec_raw.csv"))
 
 
 # estimate the area burn per year per fire regime 
