@@ -29,7 +29,7 @@ key <- key |>
 
 # download the historicfire and BC - all fires
 fires <- bcdata::bcdc_query_geodata("22c7cb44-1463-48f7-8e47-88857f207702") |>
-      bcdata::select(FIRE_NUMBER, FIRE_YEAR, FIRE_SIZE_HECTARES)|>
+      #bcdata::select(FIRE_NUMBER, FIRE_YEAR, FIRE_SIZE_HECTARES)|>
       bcdata::collect()
 
 fires_df <- fires |> st_drop_geometry() |> 
@@ -117,6 +117,17 @@ st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw.shp"), appe
 fires_bec_csv <- fires_bec |> 
   st_drop_geometry()
 write.csv(fires_bec_csv, fs::path(spatialDir, "fire_regime", "fire_bec_raw.csv"))
+
+bec <- read.csv(fs::path(spatialDir, "fire_regime", "fire_bec_raw.csv"))
+
+fires_df <- fires |> 
+  st_drop_geometry()
+bec <- left_join(bec, fires_df)
+
+head(bec)
+
+write.csv(bec, fs::path(spatialDir, "fire_regime", "fire_full_cols_bec_raw.csv"))
+
 
 
 # estimate the area burn per year per fire regime 
