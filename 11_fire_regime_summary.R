@@ -14,8 +14,11 @@ dataOutDir <- file.path(OutDir,'data')
 spatialOutDir <- file.path(OutDir,'spatial')
 
 #aoi <-  st_read(file.path(spatialDir, "AOI_50k.gpkg"))
-aoi <- st_read(file.path(spatialOutDir, "AOI_Admin.gpkg"))
+#aoi <- st_read(file.path(spatialOutDir, "AOI_Admin.gpkg"))
+aoi <- st_read(file.path(spatialDir, "BuMo_AOI2.gpkg"))
 
+  
+  
 # # read in the key 
 # key <- read.xlsx(fs::path(spatialDir, "fire_regime", "BUMO_regimeT.xlsx"))
 # key <- key |> 
@@ -66,34 +69,34 @@ bec <- left_join(bec, key) #|>
 # 1) what proportion of the BUMO area are the fire regimes? Using internal boundary (not buffered)
 
 bec_bumo <- bec |> 
-  st_intersection(aoi) |> 
-  select(-AOI)
+  st_intersection(aoi) # |> 
+  #select(-AOI)
 
 bec_bumo_sum <- bec_bumo |> 
   mutate(bec_total_m = st_area(geometry)) |> 
-  dplyr::mutate(bec_total_area_ha = as.numeric(bec_total_m)/10000) |> 
+  dplyr::mutate(bec_total_area_ha = round(as.numeric(bec_total_m)/10000),1) |> 
   st_drop_geometry() |> 
   group_by(MAP_LABEL, Phil_HFR) |> 
   # group_by(MAP_LABEL, BUMO_regime) |> 
-  summarise(bec_area_ha_bumo = sum(bec_total_area_ha))
+  summarise(bec_area_ha_bumo = round(sum(bec_total_area_ha),1))
 
 fr_bumo_sum <- bec_bumo_sum |> 
   group_by(Phil_HFR) |> 
-  summarise(fr_area_ha_bumo = sum(bec_area_ha_bumo)) |> 
-  mutate(total_bumo_ha = sum(fr_area_ha_bumo)) |> 
+  summarise(fr_area_ha_bumo = round(sum(bec_area_ha_bumo),1)) |> 
+  mutate(total_bumo_ha = round(sum(fr_area_ha_bumo),1)) |> 
   rowwise() |> 
   mutate(fr_pc_bumo = round((fr_area_ha_bumo/total_bumo_ha)*100,1)) 
 
-write.csv(bec_bumo_sum, fs::path(spatialDir, "fire_regime","bec_fr_total_ha_bumo.csv"))
-write.csv(fr_bumo_sum, fs::path(spatialDir, "fire_regime","fr_total_ha_bumo.csv"))
+write.csv(bec_bumo_sum, fs::path(spatialDir, "fire_regime","bec_fr_total_ha_bumo_v2.csv"))
+write.csv(fr_bumo_sum, fs::path(spatialDir, "fire_regime","fr_total_ha_bumo_v2.csv"))
 
 
 # 2) what proportion of these area are burn per year
 
 firesaoi <- fires |>  
   dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_SIZE_HECTARES) |> 
-  st_intersection(aoi) |> 
-  select(-AOI)
+  st_intersection(aoi) #|> 
+  #select(-AOI)
 
 # filter fires by target BEC zones 
 fires_bec <- firesaoi |> 
@@ -111,14 +114,14 @@ fires_bec <- fires_bec  |>
   dplyr::mutate(bec_area_burnt = round(as.numeric(area)/10000,1))  |> 
   select(c( -area))
 
-st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw.gpkg"), append = FALSE)
-st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw.shp"), append = FALSE)
+st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw_v2.gpkg"), append = FALSE)
+#st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw_v2.shp"), append = FALSE)
 
 fires_bec_csv <- fires_bec |> 
   st_drop_geometry()
-write.csv(fires_bec_csv, fs::path(spatialDir, "fire_regime", "fire_bec_raw.csv"))
+write.csv(fires_bec_csv, fs::path(spatialDir, "fire_regime", "fire_bec_raw_v2.csv"))
 
-bec <- read.csv(fs::path(spatialDir, "fire_regime", "fire_bec_raw.csv"))
+bec <- read.csv(fs::path(spatialDir, "fire_regime", "fire_bec_raw_v2.csv"))
 
 fires_df <- fires |> 
   st_drop_geometry()
@@ -126,7 +129,7 @@ bec <- left_join(bec, fires_df)
 
 head(bec)
 
-write.csv(bec, fs::path(spatialDir, "fire_regime", "fire_full_cols_bec_raw.csv"))
+write.csv(bec, fs::path(spatialDir, "fire_regime", "fire_full_cols_bec_raw_v2.csv"))
 
 
 
@@ -144,7 +147,7 @@ summary <- summary |>
   rowwise() |> 
   mutate(pc_fire_bec_yr = (fr_fire_area_ha/fr_area_ha_bumo)*100)
 
-write.csv(summary, fs::path(spatialDir, "fire_regime","fr_PhilHFR_yr_bumo.csv"))
+write.csv(summary, fs::path(spatialDir, "fire_regime","fr_PhilHFR_yr_bumo_v2.csv"))
 
 
 
