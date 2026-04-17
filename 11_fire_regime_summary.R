@@ -17,7 +17,12 @@ spatialOutDir <- file.path(OutDir,'spatial')
 #aoi <- st_read(file.path(spatialOutDir, "AOI_Admin.gpkg"))
 aoi <- st_read(file.path(spatialDir, "BuMo_AOI2.gpkg"))
 
-  
+# remove area of rock, ice and water 
+ice <- fs::path(spatialDir, "landcover_type", "snow_ice_bumo_buf.gpkg") 
+water <- fs::path(spatialDir, "landcover_type", "water_bumo_buf.gpkg") 
+
+
+
   
 # # read in the key 
 # key <- read.xlsx(fs::path(spatialDir, "fire_regime", "BUMO_regimeT.xlsx"))
