@@ -97,21 +97,82 @@ st_write(wab, fs::path(spatialDir, "landcover_type", "barren_bumo_buf.gpkg") )
 
 
 
+### 
+# Note the barron takes over lots of the alpine regions not just rock 
+
+# tested various VRI options 
+# https://www2.gov.bc.ca/assets/gov/farming-natural-resources-and-industry/forestry/stewardship/forest-analysis-inventory/data-management/standards/vegcomp_poly_rank1_data_dictionaryv5_2019.pdf
+
+# tested alpine designation in the full vri 
+# also tested the bclcs_level_4
+
+
+# use this as raster template 
+lsbc <- rast(fs::path(spatialDir, "landcover_type", "landcover_bc_3005.tif"))
 
 
 
-# 
+# # 1) read in BC landcover type (2000)
+bcl <- st_read(fs::path(spatialDir, "landcover_type","landcover_bc_2000", "NRC_OTHER_LAND_COVER_250K_SP.gpkg"))
+
+###  subset snow and ice 
+si <- bcl |> filter(LAND_COVER_CLASS_CODE ==  "Snow/Ice") |> 
+  select(LAND_COVER_CLASS_CODE)
+st_write(si, fs::path(spatialDir, "landcover_type", "snow_ice_bc_lc2000.gpkg"), append = FALSE)
+
+sib  <- st_intersection(si , aoib) |> 
+  select(-AOI)
+st_write(sib, fs::path(spatialDir, "landcover_type", "snow_ice_bumo_lc2000.gpkg") )
+
+
+# convert to terra 
+#siv <- vect(si)
+#sir <- terra::rasterize(siv, lsbc)
+
+###  ROCK and ICE
+si <- bcl |> filter(LAND_COVER_CLASS_CODE ==   "Rock/Rubble" ) |> 
+  select(LAND_COVER_CLASS_CODE)
+st_write(si, fs::path(spatialDir, "landcover_type", "rock_bc_lc2000.gpkg"), append = FALSE)
+
+sib  <- st_intersection(si , aoib) |> 
+  select(-AOI)
+st_write(sib, fs::path(spatialDir, "landcover_type", "rock_bumo_lc2000.gpkg") )
 
 
 
-  
-#https://catalogue.data.gov.bc.ca/dataset/a7e32e45-63ae-4f5a-9275-9402b6deebdc
-|>
-  #bcdata::filter(bcdata::INTERSECTS(aoi)) |>
-  bcdata::select("MAP_LABEL") |>
-  bcdata::collect() |> 
-  dplyr::select("MAP_LABEL")
+#LAND_COVER_CLASS_CODE
+#[1] "Unclassified"       "Snow/Ice"           "Rock/Rubble"        "Perennial Cropland"
+#[5] "Annual Cropland"    "Developed"    
 
-# crop to BuMo
 
+
+###########################################################################3
+## Generate a compiled outputs with ice, snow and rock, water and urban removed 
+
+# this combines : 2020 landcover inputs (snow, water, urban)
+#                : 2000 landcover (snow_ice, rocks)
+
+
+# # 1) read in BC
+bc <- st_read(fs::path("/home/user/Documents/00_data/base_vector/bc/bc_boundary.gpkg"))
+
+
+## BC wide 
+
+sn <- st_read (fs::path(spatialDir, "landcover_type", "snow_ice_bc.gpkg")) 
+wa <- st_read (fs::path(spatialDir, "landcover_type", "water_bc.gpkg") )
+ur <- st_read (fs::path(spatialDir, "landcover_type", "urban_bc.gpkg") )
+ro <- st_read (fs::path(spatialDir, "landcover_type", "rock_bc_lc2000.gpkg"))
+sni <- st_read (fs::path(spatialDir, "landcover_type", "snow_ice_bc_lc2000.gpkg"))
+
+all <- bind_rows(sn, wa, ur, ro, sni)
+
+head(all)
+allu <- st_union(all)
+
+st_write(all, fs::path(spatialDir, "landcover_type", "bc_non_veg_mask.gpkg"))
+st_write(allu, fs::path(spatialDir, "landcover_type", "bc_non_veg_mask_union.gpkg") )
+
+
+### AOI buffered 
 
