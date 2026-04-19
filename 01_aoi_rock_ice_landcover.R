@@ -171,7 +171,7 @@ head(all)
 allu <- st_union(all)
 
 st_write(all, fs::path(spatialDir, "landcover_type", "bc_non_veg_mask.gpkg"))
-st_write(allu, fs::path(spatialDir, "landcover_type", "bc_non_veg_mask_union.gpkg") )
+st_write(allu, fs::path(spatialDir, "landcover_type", "bc_non_veg_mask_union1.gpkg") )
 
 
 ### AOI buffered 
