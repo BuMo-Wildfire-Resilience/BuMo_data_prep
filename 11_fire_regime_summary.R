@@ -17,13 +17,16 @@ spatialOutDir <- file.path(OutDir,'spatial')
 #aoi <- st_read(file.path(spatialOutDir, "AOI_Admin.gpkg"))
 aoi <- st_read(file.path(spatialDir, "BuMo_AOI2.gpkg"))
 
-# remove area of rock, ice and water 
-ice <- fs::path(spatialDir, "landcover_type", "snow_ice_bumo_buf.gpkg") 
-water <- fs::path(spatialDir, "landcover_type", "water_bumo_buf.gpkg") 
+# read in the mask with ice_rock, snow, 
+mask <- st_read(fs::path(spatialDir, "landcover_type", "bc_non_veg_mask_union1.gpkg"))
+
+# mask out the aoi
+aoim <- st_difference(aoi, mask)
+
+#st_write(aoim, file.path(spatialDir, "BuMo_AOI2_mask.gpkg"))
+ aoi <- aoim 
 
 
-
-  
 # # read in the key 
 # key <- read.xlsx(fs::path(spatialDir, "fire_regime", "BUMO_regimeT.xlsx"))
 # key <- key |> 
@@ -44,13 +47,19 @@ fires_df <- fires |> st_drop_geometry() |>
   group_by(FIRE_YEAR) |> 
   summarise(n = n())
 
-
 # # 1) BEC Biogeographical linework
 bec <- bcdata::bcdc_query_geodata("f358a53b-ffde-4830-a325-a5a03ff672c3") |>
     #bcdata::filter(bcdata::INTERSECTS(aoi)) |>
     bcdata::select("MAP_LABEL") |>
     bcdata::collect() |> 
     dplyr::select("MAP_LABEL")
+#st_write(bec, file.path(spatialDir, "BC_BEC.gpkg"))
+
+
+# mask out the aoi - snow and ice, urban, rock 
+#becm <- st_difference(bec, mask)
+#st_write(becm, file.path(spatialDir, "BC_BEC_mask.gpkg"))
+
 
 # join the BuMO fire regime key
 bec <- left_join(bec, key) #|> 
@@ -77,6 +86,7 @@ bec_bumo <- bec |>
   st_intersection(aoi) # |> 
   #select(-AOI)
 
+
 bec_bumo_sum <- bec_bumo |> 
   mutate(bec_total_m = st_area(geometry)) |> 
   dplyr::mutate(bec_total_area_ha = round(as.numeric(bec_total_m)/10000),1) |> 
@@ -92,8 +102,8 @@ fr_bumo_sum <- bec_bumo_sum |>
   rowwise() |> 
   mutate(fr_pc_bumo = round((fr_area_ha_bumo/total_bumo_ha)*100,1)) 
 
-write.csv(bec_bumo_sum, fs::path(spatialDir, "fire_regime","bec_fr_total_ha_bumo_v2.csv"))
-write.csv(fr_bumo_sum, fs::path(spatialDir, "fire_regime","fr_total_ha_bumo_v2.csv"))
+write.csv(bec_bumo_sum, fs::path(spatialDir, "fire_regime","bec_fr_total_ha_bumo_v2_mask.csv"))
+write.csv(fr_bumo_sum, fs::path(spatialDir, "fire_regime","fr_total_ha_bumo_v2_mask.csv"))
 
 
 # 2) what proportion of these area are burn per year
@@ -119,14 +129,15 @@ fires_bec <- fires_bec  |>
   dplyr::mutate(bec_area_burnt = round(as.numeric(area)/10000,1))  |> 
   select(c( -area))
 
-st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw_v2.gpkg"), append = FALSE)
+st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw_v2_mask.gpkg"), append = FALSE)
 #st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw_v2.shp"), append = FALSE)
 
 fires_bec_csv <- fires_bec |> 
   st_drop_geometry()
-write.csv(fires_bec_csv, fs::path(spatialDir, "fire_regime", "fire_bec_raw_v2.csv"))
+write.csv(fires_bec_csv, fs::path(spatialDir, "fire_regime", "fire_bec_raw_v2_mask.csv"))
 
-bec <- read.csv(fs::path(spatialDir, "fire_regime", "fire_bec_raw_v2.csv"))
+
+bec <- read.csv(fs::path(spatialDir, "fire_regime", "fire_bec_raw_v2_mask.csv"))
 
 fires_df <- fires |> 
   st_drop_geometry()
@@ -134,7 +145,7 @@ bec <- left_join(bec, fires_df)
 
 head(bec)
 
-write.csv(bec, fs::path(spatialDir, "fire_regime", "fire_full_cols_bec_raw_v2.csv"))
+write.csv(bec, fs::path(spatialDir, "fire_regime", "fire_full_cols_bec_raw_v2_mask.csv"))
 
 
 
@@ -152,7 +163,9 @@ summary <- summary |>
   rowwise() |> 
   mutate(pc_fire_bec_yr = (fr_fire_area_ha/fr_area_ha_bumo)*100)
 
-write.csv(summary, fs::path(spatialDir, "fire_regime","fr_PhilHFR_yr_bumo_v2.csv"))
+write.csv(summary, fs::path(spatialDir, "fire_regime","fr_PhilHFR_yr_bumo_v2_mask.csv"))
+
+
 
 
 
