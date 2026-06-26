@@ -26,6 +26,31 @@ Mjr_Wshd<-bcdc_get_data("WHSE_BASEMAPPING.BC_MAJOR_WATERSHEDS") %>%
   st_zm(drop=TRUE)
 st_crs(Mjr_Wshd)<-3005
 write_sf(Mjr_Wshd, file.path(spatialOutDir,"Mjr_Wshd.gpkg"))
+#Updated FN boundaries - sourced by Eclipse
+BuMo_AOI2_detail<-st_read(file.path(DataDir,'Eclipse/Outline_Boundaries_merged1.shp')) %>%
+  st_zm(.) %>% #remove 3d
+  mutate(ID=as.numeric(rownames(.))) %>%
+  mutate(area_Ha=as.numeric(st_area(.)*0.0001)) %>%
+  dplyr::select(ID,area_Ha,Laxwiiyip=LAXWIIYIP, Pdeek=PDEEK, Simgiigyet=SIMGIIGYET, Watershed=WATERSHED_,SEA,Source=layer)
+write_sf(BuMo_AOI2_detail, file.path(spatialOutDir,"BuMo_AOI2_detail.gpkg"))
+
+BuMo_AOI2<-BuMo_AOI2_detail %>%
+  st_union() %>%
+  fill_holes(., threshold = units::set_units(Inf, "m^2")) %>%
+  st_as_sf()
+write_sf(BuMo_AOI2, file.path(spatialOutDir,"BuMo_AOI2.gpkg"))
+
+AOI2.buffer<-BuMo_AOI2 %>%
+   st_buffer(.,dist=50000)
+#Add in Skeena for final AOI
+AOI_Admin<-AOI.buffer #%>%
+#st_union(AOI.Skeena)
+
+mapview(BuMo_AOI2)+mapview(AOI2.buffer)+mapview(AOI_50km)
+
+
+
+#Older AOI generation
 #First Nation Statement of Intent
 FN_statement_of_intent<-bcdc_get_data("REG_LEGAL_AND_ADMIN_BOUNDARIES.QSOI_BC_REGIONS")
 st_crs(FN_statement_of_intent)<-3005
@@ -87,7 +112,8 @@ write_sf(AOI.Nations, file.path(spatialOutDir,"AOI.Nations.gpkg"))
   Mjr_Wshd<-st_read(file.path(spatialOutDir,"Mjr_Wshd.gpkg"))
   FN_statement_of_intent<-st_read(file.path(spatialOutDir,"FN_statement_of_intent.gpkg"))
   bc_tsa<-st_read(file.path(spatialOutDir,"bc_tsa.gpkg"))
-  AOI<-st_read(file.path(spatialOutDir,"AOI.gpkg"))
+  AOI_50km<-st_read(file.path(spatialOutDir,'AOI_50km.gpkg'))
+  AOI_Admin<-st_read(file.path(spatialOutDir,'AOI_Admin.gpkg'))
   AOI.Gitxsan<-(file.path(spatialOutDir,'AOI.Gitxsan.gpkg'))
 }
 
