@@ -15,28 +15,27 @@ spatialOutDir <- file.path(OutDir,'spatial')
 
 #aoi <-  st_read(file.path(spatialDir, "AOI_50k.gpkg"))
 #aoi <- st_read(file.path(spatialOutDir, "AOI_Admin.gpkg"))
-aoi <- st_read(file.path(spatialDir, "BuMo_AOI2.gpkg"))
+aoi_full <- st_read(file.path(spatialDir, "BuMo_AOI2.gpkg"))
 
 # read in the mask with ice_rock, snow, 
 mask <- st_read(fs::path(spatialDir, "landcover_type", "bc_non_veg_mask_union1.gpkg"))
 
 # mask out the aoi
-aoim <- st_difference(aoi, mask)
+aoim <- st_difference(aoi_full, mask)
 
 #st_write(aoim, file.path(spatialDir, "BuMo_AOI2_mask.gpkg"))
- aoi <- aoim 
+aoi <- aoim 
 
+full_boudary_ha  = round(as.numeric(st_area(aoi_full))/10000,1)
+mask_boundary_ha = round(as.numeric(st_area(aoi))/10000,1)  
 
-# # read in the key 
-# key <- read.xlsx(fs::path(spatialDir, "fire_regime", "BUMO_regimeT.xlsx"))
-# key <- key |> 
-#   mutate(MAP_LABEL = BEC_variant)
+mask_boundary_ha/full_boudary_ha
 
 
 # read in the key 
-key <- read.xlsx(fs::path(spatialDir, "fire_regime", "BuMo_HFR_options.xlsx"))
-key <- key |> 
-  mutate(MAP_LABEL = BEC_variant)
+#key <- read.xlsx(fs::path(spatialDir, "fire_regime", "BuMo_HFR_options.xlsx"))
+#key <- key |> 
+#  mutate(MAP_LABEL = BEC_variant)
 
 # download the historicfire and BC - all fires
 fires <- bcdata::bcdc_query_geodata("22c7cb44-1463-48f7-8e47-88857f207702") |>
@@ -49,61 +48,299 @@ fires_df <- fires |> st_drop_geometry() |>
 
 # # 1) BEC Biogeographical linework
 bec <- bcdata::bcdc_query_geodata("f358a53b-ffde-4830-a325-a5a03ff672c3") |>
-    #bcdata::filter(bcdata::INTERSECTS(aoi)) |>
+    bcdata::filter(bcdata::INTERSECTS(aoi)) |>
     bcdata::select("MAP_LABEL") |>
     bcdata::collect() |> 
     dplyr::select("MAP_LABEL")
 #st_write(bec, file.path(spatialDir, "BC_BEC.gpkg"))
 
 
-# mask out the aoi - snow and ice, urban, rock 
-#becm <- st_difference(bec, mask)
-#st_write(becm, file.path(spatialDir, "BC_BEC_mask.gpkg"))
+# # 2) Read in the fire regime prepared by Don (June 25th 2026)
+hfr <- st_read(fs::path(spatialDir, "HNFR_2500_masked.gpkg"))
+hfr_full <- st_read(fs::path(spatialDir, "HNFR_clean_2500ha.gpkg"))
+
+# check the area matches the masked boundary amount above 
+full_boudary_hfr_ha  = sum(round(as.numeric(st_area(hfr))/10000,1))
+
+
+
 
 
 # join the BuMO fire regime key
 bec <- left_join(bec, key) #|> 
   #select(-ID, -BEC_variant) 
 
-
-# review the bec units to make sure they matched
-#bec1 <- bec1 |> 
-#  filter(!is.na(Phil_HFR))
-#
-#bec11 <- st_drop_geometry(bec1) |> 
-#  unique()
-#
-
-
 # PUT THIS ON HOLD FOR NOW
 # results openings list
 #rsl_burn_ids <- read.xlsx(fs::path(spatialDir, "fire_regime", "Burned_RSLT_openings_clean_June19.xlsx"))
 
 
+
 # 1) what proportion of the BUMO area are the fire regimes? Using internal boundary (not buffered)
-
-bec_bumo <- bec |> 
-  st_intersection(aoi) # |> 
-  #select(-AOI)
-
-
-bec_bumo_sum <- bec_bumo |> 
-  mutate(bec_total_m = st_area(geometry)) |> 
-  dplyr::mutate(bec_total_area_ha = round(as.numeric(bec_total_m)/10000),1) |> 
+hfr_bumo_sum <- hfr |> 
+  mutate(hft_total_m = st_area(geom)) |> 
+  dplyr::mutate(hft_total_area_ha = round(as.numeric(hft_total_m)/10000),1) |> 
   st_drop_geometry() |> 
-  group_by(MAP_LABEL, Phil_HFR) |> 
-  # group_by(MAP_LABEL, BUMO_regime) |> 
-  summarise(bec_area_ha_bumo = round(sum(bec_total_area_ha),1))
-
-fr_bumo_sum <- bec_bumo_sum |> 
-  group_by(Phil_HFR) |> 
-  summarise(fr_area_ha_bumo = round(sum(bec_area_ha_bumo),1)) |> 
-  mutate(total_bumo_ha = round(sum(fr_area_ha_bumo),1)) |> 
+  group_by(HNFR) |> 
+  summarise(hfr_area_ha_bumo = round(sum(hft_total_area_ha),1)) |> 
+  mutate(total_masked_ha = full_boudary_hfr_ha) |> 
   rowwise() |> 
-  mutate(fr_pc_bumo = round((fr_area_ha_bumo/total_bumo_ha)*100,1)) 
+  mutate(percent_area_bumo = (hfr_area_ha_bumo/total_masked_ha)* 100)
 
-write.csv(bec_bumo_sum, fs::path(spatialDir, "fire_regime","bec_fr_total_ha_bumo_v2_mask.csv"))
-write.csv(fr_bumo_sum, fs::path(spatialDir, "fire_regime","fr_total_ha_bumo_v2_mask.csv"))
+
+
+# 2) what proportion of these area are burn per year
+firesaoi <- fires |>  
+  dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_SIZE_HECTARES) |> 
+  st_intersection(aoi) 
+
+# filter fires by hfr types 
+fires_hfr <- firesaoi |> 
+  st_intersection(hfr) 
+
+# make this valid polygons
+fires_hfr <- fires_hfr |> 
+  st_make_valid() |> 
+  st_buffer(0)
+
+fires_hfr <- fires_hfr  |> 
+  mutate(area = st_area(geometry)) |> 
+  dplyr::mutate(hfr_area_burnt = round(as.numeric(area)/10000,1))  |> 
+  select(c( -area))
+
+st_write(fires_hfr, fs::path(spatialDir, "fire_regime","fire_hfr_raw_mask.gpkg"), append = FALSE)
+#st_write(fires_bec, fs::path(spatialDir, "fire_regime","fire_bec_raw_v2.shp"), append = FALSE)
+
+fires_hfr_csv <- fires_hfr |> 
+  st_drop_geometry()
+write.csv(fires_hfr_csv, fs::path(spatialDir, "fire_regime", "fire_hfr_raw_mask.csv"))
+
+
+#################################################################################
+# BURN RATIO calculations 
+# estimate the area burn per year per fire regime 
+
+fires_bec_summ <- fires_hfr |> 
+  st_drop_geometry() |> 
+  group_by(FIRE_YEAR, HNFR) |> 
+  summarise(fr_fire_area_ha = sum(hfr_area_burnt))
+
+# add the column with the area per bec 
+summary <- left_join(fires_bec_summ, hfr_bumo_sum)
+
+summary <- summary |> 
+  rowwise() |> 
+  mutate(pc_fire_hfnr_yr = (fr_fire_area_ha/hfr_area_ha_bumo)*100)
+
+write.csv(summary, fs::path(spatialDir, "fire_regime","fr_hfr_yr_bumo_mask.csv"))
+
+
+## calculate the burn rate ....incluidg 0 for missing years 
+
+fullgrid <- expand.grid(FIRE_YEAR = c(1919:2025), HNFR = c("6a", "4a", "4b", "6b" ,"7"  ,"8" ))
+fullgrid <- left_join(fullgrid, summary)|> 
+  select(FIRE_YEAR, HNFR, pc_fire_hfnr_yr) |> 
+  mutate_all(~replace(., is.na(.), 0))
+
+
+# burn rate is the proportion of area burn each year / decade?
+
+# phase 1 - 1919 to 1932
+# phase 2 - 1933 - 2003 
+# phase 3 - 2004 to 2025
+
+## Table 1: 
+phase1 <- fullgrid |> 
+  filter(FIRE_YEAR <1933) |> 
+  group_by(HNFR) |> 
+  summarise(ave_br = mean(pc_fire_hfnr_yr))
+
+
+phase2 <- fullgrid |> 
+  filter(FIRE_YEAR >1932 & FIRE_YEAR <2004) |> 
+  group_by(HNFR) |> 
+  summarise(ave_br = mean(pc_fire_hfnr_yr))
+
+phase3 <- fullgrid |> 
+  filter(FIRE_YEAR >2003) |> 
+  group_by(HNFR) |> 
+  summarise(ave_br = mean(pc_fire_hfnr_yr))
+                  
+
+## Table 2: 
+#Using phase 1
+
+## generate the mean and median fire sizes for any fires that intersect HFNR
+
+fireshnfr <- fires |>  
+  dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_SIZE_HECTARES) |> 
+  st_intersection(hfr) |> 
+  filter(FIRE_YEAR <1933) 
+
+# make this valid polygons
+fires_hfr <- fireshnfr |> 
+  st_make_valid() |> 
+  st_buffer(0)
+
+# calcaulte the amount of fire area burnt 
+fires_hfr <- fires_hfr  |> 
+  mutate(area = st_area(geometry)) |> 
+  dplyr::mutate(hfr_area_burnt = round(as.numeric(area)/10000,1))  |> 
+  select(c( -area)) |> 
+  st_drop_geometry() |> 
+  group_by(FIRE_NUMBER, FIRE_SIZE_HECTARES,FIRE_YEAR, HNFR ) |> 
+  summarise(fr_fire_area_ha = sum(hfr_area_burnt))
+
+# get max fire size area (ha)
+fires_bec_summ_bc_max <- fires_hfr |> 
+  group_by(HNFR) |> 
+  slice_max(fr_fire_area_ha)
+
+
+# get the mean and median size fires (per year)
+#fires_bec_summ_bc_max$Phil_HFR <- addNA(fires_bec_summ_bc_max$Phil_HFR)
+
+ave_fires <- fires_hfr |>
+  group_by(HNFR) |> 
+  summarise(count = n(), 
+            average_all_fire_ha = mean(FIRE_SIZE_HECTARES, na.rm = T),
+            median_all_fire_ha = median(FIRE_SIZE_HECTARES,na.rm = T),
+            average_fr_fire_ha = mean(fr_fire_area_ha),
+            median_fr_fire_ha = median(fr_fire_area_ha)
+  )
+
+write.csv(ave_fires, fs::path(spatialDir, "fire_regime","fr_HNFR_ave_fire_size_BC.csv"))
+
+
+# Fire Frequency 
+ave_fires <- left_join(ave_fires, hfr_bumo_sum)
+
+ave_fires |>
+  group_by(HNFR) |> 
+  summarise(fire_freq = count/ (1932-1919)/(hfr_area_ha_bumo/1000000))
+
+
+
+############################################################################
+
+## Tabel 3 summary - Using phase 3 only 
+
+# bec description 
+hfr_bumo_sum
+
+# filter fires and get burn rate for phase 3 period
+fireshnfr <- fires |>  
+  dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_SIZE_HECTARES, FIRE_CAUSE, FIRE_DATE) |> 
+  st_intersection(hfr) |> 
+  filter(FIRE_YEAR >2003) 
+
+# make this valid polygons
+fires_hfr <- fireshnfr |> 
+  st_make_valid() |> 
+  st_buffer(0)
+
+# calcaulte the amount of fire area burnt 
+fires_hfr <- fires_hfr  |> 
+  mutate(area = st_area(geometry)) |> 
+  dplyr::mutate(hfr_area_burnt = round(as.numeric(area)/10000,1))  |> 
+  select(c( -area)) |> 
+  st_drop_geometry() |> 
+  group_by(FIRE_NUMBER, FIRE_SIZE_HECTARES,FIRE_YEAR, HNFR, FIRE_CAUSE ) |> 
+  summarise(fr_fire_area_ha = sum(hfr_area_burnt))
+
+# get max fire size area (ha)
+fires_bec_summ_bc_max <- fires_hfr |> 
+  group_by(HNFR) |> 
+  slice_max(fr_fire_area_ha)
+
+
+# get the mean and median size fires (per year)
+#fires_bec_summ_bc_max$Phil_HFR <- addNA(fires_bec_summ_bc_max$Phil_HFR)
+
+ave_fires <- fires_hfr |>
+  group_by(HNFR) |> 
+  summarise(count = n(), 
+            average_all_fire_ha = mean(FIRE_SIZE_HECTARES, na.rm = T),
+            median_all_fire_ha = median(FIRE_SIZE_HECTARES,na.rm = T),
+            average_fr_fire_ha = mean(fr_fire_area_ha),
+            median_fr_fire_ha = median(fr_fire_area_ha)
+  )
+
+write.csv(ave_fires, fs::path(spatialDir, "fire_regime","fr_HNFR_ave_fire_size_BC.csv"))
+
+# Fire Frequency 
+ave_fires <- left_join(ave_fires, hfr_bumo_sum)
+
+ave_fires |>
+  group_by(HNFR) |> 
+  summarise(fire_freq = count/(2025-2004)/(hfr_area_ha_bumo/1000000))
+
+length(unique(fires_hfr$FIRE_NUMBER))
+
+
+## Season median ignition rate  & Ignition source FIRE_CAUSE
+library(lubridate)
+
+ig_date <- fireshnfr |> 
+  select(HNFR, FIRE_DATE) |> 
+  mutate(jdate = yday(FIRE_DATE)) |> 
+  group_by(HNFR) |> 
+  mutate(median_fr_fire_ha = median(jdate)) |> 
+  st_drop_geometry() |> 
+  unique()
+
+
+
+
+# ignition source 
+ignition <- fires_hfr |> 
+  group_by(HNFR, FIRE_CAUSE) |> 
+  summarise(count = n()) 
+
+tot_count <- ignition |> 
+  group_by(HNFR) |> 
+  summarise(total_n = sum(count))
+
+ig <- left_join(ignition, tot_count) |> 
+  rowwise() |> 
+  mutate(per = (count/total_n)*100)
+  
+
+
+
+
+
+
+
+
+
+
+
+
+249# bec_bumo <- bec |> 
+#   st_intersection(aoi) # |> 
+#   #select(-AOI)
+
+# bec_bumo_sum <- bec_bumo |> 
+#   mutate(bec_total_m = st_area(geometry)) |> 
+#   dplyr::mutate(bec_total_area_ha = round(as.numeric(bec_total_m)/10000),1) |> 
+#   st_drop_geometry() |> 
+#   group_by(MAP_LABEL, Phil_HFR) |> 
+#   # group_by(MAP_LABEL, BUMO_regime) |> 
+#   summarise(bec_area_ha_bumo = round(sum(bec_total_area_ha),1))
+# 
+# fr_bumo_sum <- bec_bumo_sum |> 
+#   group_by(Phil_HFR) |> 
+#   summarise(fr_area_ha_bumo = round(sum(bec_area_ha_bumo),1)) |> 
+#   mutate(total_bumo_ha = round(sum(fr_area_ha_bumo),1)) |> 
+#   rowwise() |> 
+#   mutate(fr_pc_bumo = round((fr_area_ha_bumo/total_bumo_ha)*100,1)) 
+# 
+# write.csv(bec_bumo_sum, fs::path(spatialDir, "fire_regime","bec_fr_total_ha_bumo_v2_mask.csv"))
+# write.csv(fr_bumo_sum, fs::path(spatialDir, "fire_regime","fr_total_ha_bumo_v2_mask.csv"))
+# 
+
+
 
 
 # 2) what proportion of these area are burn per year
