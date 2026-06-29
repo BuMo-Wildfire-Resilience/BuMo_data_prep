@@ -79,8 +79,6 @@ hfr_bumo_sum <- hfr |>
 
 
 
-
-
 # 2) what proportion of these area are burn per year
 firesaoi <- fires |>  
   dplyr::select(FIRE_NUMBER, FIRE_YEAR, FIRE_SIZE_HECTARES, FIRE_CAUSE, FIRE_DATE) |> 
@@ -106,6 +104,28 @@ st_write(fires_hfr, fs::path(spatialDir, "fire_regime","fire_hfr_raw_mask_202606
 fires_hfr_csv <- fires_hfr |> 
   st_drop_geometry()
 write.csv(fires_hfr_csv, fs::path(spatialDir, "fire_regime", "fire_hfr_raw_mask_20260628.csv"))
+
+
+# check no of fires from phase 1 , phase 2 and phase 3
+#Calc no of fires per phase for summary 
+
+
+tot_fire_freq_no <-  fires_hfr |> 
+  st_drop_geometry() |> 
+  select(FIRE_NUMBER, HNFR, FIRE_YEAR) |> 
+  rowwise() |> 
+  mutate(FIRE_ID = paste0(FIRE_NUMBER, "_",FIRE_YEAR)) |> 
+  mutate(phase = case_when(
+    FIRE_YEAR <1933 ~ "phase1",
+    FIRE_YEAR >1932 & FIRE_YEAR <2004 ~ "phase2",
+    FIRE_YEAR >2003 ~ "phase3",
+  )) |> 
+  group_by(phase) |> 
+  summarise(segments = n(),
+            n_fires = length(unique(FIRE_ID)))
+
+
+
 
 
 ###############################################################################3
