@@ -33,6 +33,8 @@ library(matrixStats)
 library(purrr)
 library(datawizard)
 library(gtools)
+library(units)
+library(igraph)
 
 options(scipen=999)
 options(warn = 1)

@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and limitations under the License.
 
 AOI_50km<-st_read(file.path(spatialOutDir,'AOI_50km.gpkg'))
-AOI_Admin<-st_read(file.path(spatialOutDir,'AOI_Admin.gpkg'))
+AOI_Admin<-st_read(file.path(spatialDir,'BuMo_AOI2.gpkg'))
 AOI_TSA<-st_read(file.path(spatialOutDir,'AOI.TSA.gpkg'))
 BEC_BuMo <- read_sf(file.path(spatialOutDir, "BEC_BuMo.gpkg"))
 #Load Fire Region Units and align with BuMo
@@ -19,13 +19,17 @@ ProvRastT <- rast(file.path(spatialOutDir, "ProvRast.tif"))
 FRU <- rast(file.path(spatialDir, "FRU/FRUs.tif")) %>%
   resample(ProvRastT,method='near')
 names(FRU)<-'FRU'
+
+
 #Load FRU LUTs
 FRU_BEC_Lookup <- read_csv(file.path(spatialDir, "FRU/FRU_BEC_Lookup.csv"))
 FRU_Region_LUT <- read_excel(file.path(spatialDir, "FRU/FRU_Region_LUT.xlsx"))
 #Intersect with BuMo admin boundary
 FRU_BuMo<-FRU %>%
-  crop(vect(AOI_Admin)) %>%
-  mask(vect(AOI_Admin))
+  crop(vect(AOI_50km)) %>%
+  mask(vect(AOI_50km))
+writeRaster(FRU_BuMo, filename = file.path(spatialOutDir, paste0("FRU_BuMo.tif")), overwrite = TRUE)
+
 #Area breakdown
 cell_area<-terra::cellSize(FRU_BuMo,unit='ha')
 FRU_table<-terra::zonal(cell_area,FRU_BuMo,fun=sum) %>%
@@ -36,8 +40,8 @@ FRU_Region <- FRU %>%
   as.factor(.)
 #Intersect with BuMo admin boundary
 FRU_Region_BuMo<-FRU_Region %>%
-  crop(vect(AOI_Admin)) %>%
-  mask(vect(AOI_Admin))
+  crop(vect(AOI_50km)) %>%
+  mask(vect(AOI_50km))
 #Assign Region names to FRU units
 levels(FRU_Region_BuMo)<-FRU_Region_LUT
 plot(FRU_Region_BuMo)
@@ -264,30 +268,10 @@ BUMO_regime_LUT<-data.frame(ID=c(4,10,11,6,7,8),FireRegimeCode=c('IV','IVa','IVb
 
 levels(BUMO_regime)<-BUMO_regime_LUT
 
-
 write.xlsx(BUMO_regimeT,file.path(dataOutDir, paste0("BUMO_regimeT.xlsx")),overwrite=TRUE) 
 writeRaster(BUMO_regime, filename = file.path(spatialOutDir, paste0("BUMO_regime.tif")), overwrite = TRUE)
 
-#Cross reference FRU and BUMO_regime
-BUMO_regime_A<-BUMO_regime %>%
-  resample(ProvRastT,method='near') %>%
-  crop(vect(AOI_Admin)) %>%
-  mask(vect(AOI_Admin)) 
 
-# Cross tabulate BUMO's regime with FRU
-Regime_stack<-c(FRU_Region_BuMo,BUMO_regime_A)
-Regime_FRU_table <- terra::crosstab(Regime_stack)
-print(Regime_FRU_table)
-write.xlsx(Regime_FRU_table,file.path(dataOutDir, paste0("Regime_FRU_table.xlsx")),overwrite=TRUE) 
 
-# cross tabulate BuMo's BEC with FRU
-BECr_A<-BECr %>%
-  resample(ProvRastT,method='near') %>%
-  crop(vect(AOI_Admin)) %>%
-  mask(vect(AOI_Admin)) 
-FRU_BEC_stack<-c(BECr_A,FRU_Region_BuMo)
-BEC_FRU_table <- terra::crosstab(FRU_BEC_stack)
-print(BEC_FRU_table)
-write.xlsx(BEC_FRU_table,file.path(dataOutDir, paste0("BEC_FRU_table.xlsx")),overwrite=TRUE) 
 
 
