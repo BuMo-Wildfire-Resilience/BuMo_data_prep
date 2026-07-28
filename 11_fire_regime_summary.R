@@ -369,6 +369,44 @@ write.csv(ave_fires, fs::path(spatialDir, "fire_regime","fr_PhilHFR_ave_fire_siz
 
 
 
+#############################################################################################################
+## Request for Geoff for fuel regime 
+
+tsa <- st_read(fs::path(spatialOutDir, "Bulkley_Morice_TSA.gpkg")) |> 
+  select(TSA_NUMBER_DESCRIPTION)
+
+tsa_area_entire <- tsa |> 
+  mutate(area_ha = round(as.numeric(st_area(geom))/10000,1))
+  
+# # 2) Read in the fire regime prepared by Don (June 25th 2026)
+hfr <- st_read(fs::path(spatialDir, "HNFR_2500_masked.gpkg"))
+            
+# intersect the hfr and tsa               
+aa <-  st_intersection(tsa, hfr) 
+
+aa1 <- aa |> 
+  mutate(area_ha = round(as.numeric(st_area(geom))/10000,1))
+
+tsa_area <- aa1 |> 
+  st_drop_geometry() |> 
+  group_by(TSA_NUMBER_DESCRIPTION) |> 
+  mutate(total_area = sum(area_ha)) |> 
+  rowwise() |> 
+  mutate(pc = (area_ha/total_area)*100)
+
+
+write.csv(tsa_area, fs::path(spatialDir, "fire_regime","tsa_fireregime_summary.csv"))
+
+# get a summary of the values 
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1324,3 +1362,6 @@ p6b <- ggplot(fr_yr, aes(x = FIRE_YEAR, y = fr_area_ha)) +
 p6b
 
   
+
+
+
