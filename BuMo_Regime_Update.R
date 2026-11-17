@@ -10,13 +10,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and limitations under the License.
 
-AOI_50km<-st_read(file.path(spatialOutDir,'AOI_50km.gpkg'))
-AOI_Admin<-st_read(file.path(spatialDir,'BuMo_AOI2.gpkg'))
+AOI_50km<-st_read(file.path(DataDir,'Boundaries_admin/AOI_50km.gpkg'))
+AOI_Admin<-st_read(file.path(DataDir,'Boundaries_admin/BuMo_AOI2.gpkg'))
 
-#FWA_lakes <- st_read(file.path(SpatialDir, "bc_non_veg_mask_union1.gpkg")) |>
+#FWA_lakes <- st_read(file.path(DataDir, "bc_non_veg_mask_union1.gpkg")) |>
 #  st_intersection(AOI_Admin)
 #lakes_union <- FWA_lakes |> st_union() |> st_make_valid()
-NonVeg<-st_read(file.path(spatialDir,'landcover_types/bc_non_veg_mask_union1.gpkg')) |>
+NonVeg<-st_read(file.path(DataDir,'landcover_types/bc_non_veg_mask_union1.gpkg')) |>
   st_intersection(AOI_Admin)
 #NonVeg <- NonVeg |> st_union() |> st_make_valid()
 
@@ -29,7 +29,7 @@ BEC<- read_sf(file.path(spatialOutDir, "BEC_BuMo.gpkg")) %>%
   dplyr::select(BEC_variant,ZONE,SUBZONE,VARIANT,NDT,BEC_ZoneSub) %>%
   st_intersection(AOI_Admin)
 
-HFNR_update.data<-read_excel(file.path(DataDir,'BuMo_NFR_8April2026.xlsx')) %>%
+HFNR_update.data<-read_excel(file.path(DataDir,'FireRegime/BuMo_NFR_8April2026.xlsx')) %>%
   dplyr::rename(HNFR=Phil_v2)
 
 HNFR_up <- BEC %>%
