@@ -47,11 +47,11 @@ control.compute=list(save.memory=TRUE)
 #remotes::install_github("bcgov/climr", force=TRUE)
 #library(climr)
 
-DataDir <- '../../../BuMo Analysis/BuMo_data_prep/data'
+DataDir <- '../../../BuMo Analysis/Data'
 #DataDir<-'data'
 dir.create(DataDir, showWarnings = FALSE)
-spatialDir <- file.path(DataDir,'spatial')
-dir.create(spatialDir, showWarnings = FALSE)
+#spatialDir <- file.path(DataDir,'spatial')
+#dir.create(spatialDir, showWarnings = FALSE)
 
 OutDir <- '../../../BuMo Analysis/BuMo_data_prep/out'
 #OutDir<-'out'
