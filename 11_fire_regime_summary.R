@@ -53,7 +53,7 @@ fires_df <- fires |> st_drop_geometry() |>
 
 # # 2) Read in the fire regime prepared by Don (June 25th 2026)
 hfr <- st_read(fs::path(spatialDir, "HNFR_2500_masked.gpkg"))
-#hfr <- st_read(fs::path(spatialDir, "HNFR_clean_2500ha.gpkg"))
+hfr <- st_read(fs::path(spatialDir, "HNFR_clean_2500ha.gpkg"))
 
 
 # join the BuMO fire regime key
