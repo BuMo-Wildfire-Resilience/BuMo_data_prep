@@ -1,0 +1,208 @@
+---
+title: "Fire regime summary: severity raster coverage"
+date: today
+format:
+  html:
+    toc: true
+    embed-resources: true
+  docx:
+    toc: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+
+library(sf)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+DataDir <- 'data'
+spatialDir <- fs::path(DataDir,'spatial')
+
+OutDir <- 'out'
+spatialOutDir <- file.path(OutDir,'spatial')
+
+aoi <- st_read(file.path(spatialDir, "AOI_50k.gpkg"), quiet = TRUE)
+fkey <- st_read(fs::path(spatialOutDir, "severity_fires_bumo_key.gpkg"), quiet = TRUE)
+```
+
+## Data
+
+Fire perimeters from the BC historical fire layer (BC Data Catalogue) and the National Burned Area Composite (NBAC) were filtered to fires after 2001 that intersect the AOI, and matched by intersecting the two datasets within each year. A fire is counted as having a severity raster if an RBR file exists for its NBAC fire ID (GID). Fires from 2025 are excluded.
+
+```{r}
+#| label: fire-summary
+
+# drop 2025 fires
+
+fkey <-fkey |>
+  filter(YEAR < 2025)
+
+fkey_df <- fkey |>
+  st_drop_geometry() |>
+  mutate(
+    sev_exists = if_else(is.na(sev_exists) | !as.logical(sev_exists),
+                         "No severity raster", "Severity raster"),
+    size_class = cut(POLY_HA,
+                     breaks = c(0, 10, 100, 500, 1000, 10000, Inf),
+                     labels = c("1–10", "10–100", "100–500", "500–1,000",
+                                "1,000–10,000", ">10,000"),
+                     right = FALSE, include.lowest = TRUE)
+  )
+```
+
+### Number of fires
+
+```{r}
+#| label: tbl-fire-counts
+
+tibble(
+  Measure = c("Matched records (BC x NBAC overlaps)",
+              "Unique BC fires (FIRE_NUMBER)",
+              "Unique NBAC fires (GID)"),
+  Count = c(nrow(fkey),
+            length(unique(fkey$FIRE_NUMBER)),
+            length(unique(fkey$GID)))
+) |>
+  kable()
+```
+
+The two fire datasets don't line up one-to-one. Counting the unique BC fire numbers (`FIRE_NUMBER`) and the unique NBAC fire IDs (`GID`) shows how many distinct fires each dataset contains for the same set of matched records:
+
+- The number of **unique GIDs** is the number of NBAC fires that overlap a BC fire in the AOI.
+- The number of **unique fire numbers** is the number of BC fires that overlap an NBAC fire.
+- The counts differ because one NBAC fire can match more than one BC fire (the BC data splits it into separate fires), and one BC fire can match more than one NBAC fire.
+- The number of **matched records** is higher than either, because the matching creates one record for every BC–NBAC overlap.
+
+## Maps
+
+```{r}
+#| label: fig-map-severity
+#| fig-cap: "Fires with and without a severity raster, coloured by fire size. Black outline = AOI."
+#| fig-width: 10
+#| fig-height: 6
+
+fkey_map <- fkey |>
+  mutate(
+    sev_exists = if_else(is.na(sev_exists) | !as.logical(sev_exists),
+                         "No severity raster", "Severity raster"),
+    size_class = cut(POLY_HA,
+                     breaks = c(0, 10, 100, 500, 1000, 10000, Inf),
+                     labels = c("1–10", "10–100", "100–500", "500–1,000",
+                                "1,000–10,000", ">10,000"),
+                     right = FALSE, include.lowest = TRUE)
+  ) |>
+  st_transform(st_crs(aoi))
+
+ggplot() +
+  geom_sf(data = fkey_map, aes(fill = size_class, colour = size_class), linewidth = 0.3) +
+  geom_sf(data = aoi, fill = NA, colour = "black", linewidth = 0.6) +
+  facet_wrap(~ sev_exists) +
+  scale_fill_viridis_d(option = "plasma", direction = -1, name = "Fire size (ha)") +
+  scale_colour_viridis_d(option = "plasma", direction = -1, guide = "none") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 6))
+```
+
+```{r}
+#| label: fig-map-year
+#| fig-cap: "Fires by year. Black outline = AOI."
+#| fig-width: 10
+#| fig-height: 6
+
+ggplot() +
+  geom_sf(data = fkey_map, aes(fill = YEAR, colour = YEAR), linewidth = 0.3) +
+  geom_sf(data = aoi, fill = NA, colour = "black", linewidth = 0.6) +
+  facet_wrap(~ sev_exists) +
+  scale_fill_viridis_c(name = "Year") +
+  scale_colour_viridis_c(guide = "none") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 6))
+```
+
+## Fires by year and size
+
+```{r}
+#| label: fig-year-size
+#| fig-cap: "Number of fires per year by size class, with and without a severity raster."
+#| fig-width: 9
+#| fig-height: 7
+
+ggplot(fkey_df, aes(x = factor(YEAR), fill = size_class)) +
+  geom_bar() +
+  facet_wrap(~ sev_exists, ncol = 1) +
+  scale_fill_viridis_d(option = "plasma", direction = -1, name = "Fire size (ha)") +
+  labs(x = "Year", y = "Number of fires") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+
+```{r}
+#| label: fig-size-panels
+#| fig-cap: "Fires with and without a severity raster, by size class."
+#| fig-width: 9
+#| fig-height: 6
+
+ggplot(fkey_df, aes(x = factor(YEAR), fill = sev_exists)) +
+  geom_bar() +
+  facet_wrap(~ size_class, scales = "free_y") +
+  scale_fill_manual(values = c("Severity raster" = "#1b7837",
+                               "No severity raster" = "#d73027"),
+                    name = NULL) +
+  labs(x = "Year", y = "Number of fires") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 6),
+        legend.position = "bottom")
+```
+
+Around 500 ha is the size limit below which fires generally don't have a severity raster.
+
+## Summary table
+
+```{r}
+#| label: tbl-sev
+
+sev_table <- fkey_df |>
+  summarise(
+    n_fires = n(),
+    area_ha = sum(POLY_HA, na.rm = TRUE),
+    .by = c(size_class, sev_exists)
+  ) |>
+  pivot_wider(
+    names_from  = sev_exists,
+    values_from = c(n_fires, area_ha),
+    values_fill = 0
+  ) |>
+  arrange(size_class) |>
+  mutate(
+    n_total      = `n_fires_Severity raster` + `n_fires_No severity raster`,
+    pct_with_sev = round(100 * `n_fires_Severity raster` / n_total, 1)
+  ) |>
+  select(
+    `Fire size (ha)`         = size_class,
+    `Fires with severity`    = `n_fires_Severity raster`,
+    `Fires without severity` = `n_fires_No severity raster`,
+    `Total fires`            = n_total,
+    `% with severity`        = pct_with_sev,
+    `Area with severity (ha)`    = `area_ha_Severity raster`,
+    `Area without severity (ha)` = `area_ha_No severity raster`
+  )
+
+# add a totals row
+sev_table <- bind_rows(
+  sev_table |> mutate(`Fire size (ha)` = as.character(`Fire size (ha)`)),
+  sev_table |>
+    summarise(across(where(is.numeric), sum)) |>
+    mutate(`Fire size (ha)` = "Total",
+           `% with severity` = round(100 * `Fires with severity` / `Total fires`, 1))
+)
+
+kable(sev_table, digits = 1, format.args = list(big.mark = ","),
+      caption = "Fires and area burned with and without a severity raster, by size class.")
+```
